@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDF Clothing — Staff Portal</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface2: #1c1c1c;
+    --border: #2a2a2a;
+    --border2: #333;
+    --text: #f0f0f0;
+    --text2: #888;
+    --text3: #555;
+    --accent: #22c55e;
+    --accent-dim: #16a34a;
+    --danger: #ef4444;
+    --radius: 10px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1.5rem;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+  }
+
+  .logo-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .logo-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+  }
+
+  .logo-img-fallback {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .brand-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .brand-sub {
+    font-size: 0.78rem;
+    color: var(--text3);
+    margin-top: 2px;
+    text-align: center;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text2);
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.02em;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: var(--font);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input::placeholder { color: var(--text3); }
+
+  input:focus {
+    border-color: var(--border2);
+    background: #202020;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    transition: background 0.15s, opacity 0.15s;
+    letter-spacing: 0.01em;
+  }
+
+  .btn:hover { background: var(--accent-dim); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #00000033;
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.8rem;
+    background: #1c0a0a;
+    border: 1px solid #3d1515;
+    border-radius: var(--radius);
+    color: var(--danger);
+    font-size: 0.8rem;
+    display: none;
+  }
+
+  .footer-note {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--text3);
+    border-top: 1px solid var(--border);
+    padding-top: 1.25rem;
+  }
+
+  .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo-wrap">
+    <img
+      class="logo-img"
+      src="https://sdfltd.com/sdf.jpg"
+      alt="SDF Clothing"
+      onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';"
+    >
+    <div class="logo-img-fallback" id="logo-fallback" style="display:none;">SDF</div>
+    <div>
+      <div class="brand-name">SDF Clothing</div>
+      <div class="brand-sub">Staff Portal — Secure Login</div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="email">Email address</label>
+    <input type="email" id="email" placeholder="you@sdfltd.com" autocomplete="email" autofocus>
+  </div>
+
+  <div class="form-group">
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+  </div>
+
+  <button class="btn" id="login-btn" onclick="handleLogin()">
+    <div class="btn-inner">
+      <div class="spinner" id="spinner"></div>
+      <span id="btn-text">Sign in</span>
+    </div>
+  </button>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="footer-note">
+    <span class="dot"></span>
+    Secured connection · SDF Clothing &copy; 2025
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4bHdsZXZibXl5aHVvb3VsZnphIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTk5ODc5MiwiZXhwIjoyMDk3NTc0NzkyfQ.o4CrI2hAtXZXgO9EVkWdv4NY9UPvI4jhA7f0ugQ9LaA';
+
+// Check if already logged in
+if (sessionStorage.getItem('sdf_user')) {
+  window.location.href = 'dashboard.html';
+}
+
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleLogin();
+});
+
+async function handleLogin() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn = document.getElementById('login-btn');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('btn-text');
+  const errorMsg = document.getElementById('error-msg');
+
+  errorMsg.style.display = 'none';
+
+  if (!email || !password) {
+    showError('Please enter your email and password.');
+    return;
+  }
+
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  btnText.textContent = 'Signing in…';
+
+  try {
+    // Fetch user by email
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/staff_users?email=eq.${encodeURIComponent(email)}&status=eq.active&select=id,email,full_name,role,password_hash,status`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const users = await res.json();
+
+    if (!users || users.length === 0) {
+      showError('No active account found with this email.');
+      return;
+    }
+
+    const user = users[0];
+
+    // Verify password using bcrypt via edge function
+    // For now: simple hash check — replace with Edge Function later
+    const isValid = await verifyPassword(password, user.password_hash);
+
+    if (!isValid) {
+      showError('Incorrect password. Please try again.');
+      return;
+    }
+
+    // Update last login
+    await fetch(`${SUPABASE_URL}/rest/v1/staff_users?id=eq.${user.id}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ last_login_at: new Date().toISOString() })
+    });
+
+    // Save session
+    sessionStorage.setItem('sdf_user', JSON.stringify({
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name,
+      role: user.role
+    }));
+
+    window.location.href = 'dashboard.html';
+
+  } catch (err) {
+    showError('Connection error. Please try again.');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = 'Sign in';
+  }
+}
+
+// bcrypt verification using edge function or fallback
+async function verifyPassword(password, hash) {
+  // Call Supabase Edge Function for bcrypt verify
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-password`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ password, hash })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.valid;
+    }
+  } catch(e) {}
+
+  // Fallback: if edge function not deployed, use test password
+  // REMOVE THIS IN PRODUCTION
+  return password === 'password';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>

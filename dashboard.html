@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDF Inbox</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111;
+  --surface2: #181818;
+  --surface3: #1e1e1e;
+  --border: #222;
+  --border2: #2e2e2e;
+  --text: #efefef;
+  --text2: #888;
+  --text3: #444;
+  --accent: #22c55e;
+  --accent-dim: #16a34a;
+  --accent-bg: #0d1f12;
+  --warn: #f59e0b;
+  --warn-bg: #1c1500;
+  --danger: #ef4444;
+  --danger-bg: #1c0808;
+  --blue: #3b82f6;
+  --blue-bg: #080f1c;
+  --radius: 8px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sidebar-w: 280px;
+  --detail-w: 260px;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
+
+/* ── Layout ── */
+.app { display: flex; height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.logo-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+}
+
+.logo-fallback {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.sidebar-title { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.sidebar-sub { font-size: 0.7rem; color: var(--text3); margin-top: 1px; }
+
+.sidebar-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  padding: 0.6rem 0.75rem;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  padding: 0.4rem 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text2);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.tab.active { background: var(--surface3); color: var(--text); }
+.tab:hover:not(.active) { color: var(--text); }
+
+.tab .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Search */
+.search-wrap {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: var(--font);
+  outline: none;
+}
+
+.search-input::placeholder { color: var(--text3); }
+.search-input:focus { border-color: var(--border2); }
+
+/* Conv list */
+.conv-list { flex: 1; overflow-y: auto; }
+.conv-list::-webkit-scrollbar { width: 4px; }
+.conv-list::-webkit-scrollbar-track { background: transparent; }
+.conv-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.conv-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.conv-item:hover { background: var(--surface2); }
+.conv-item.active { background: var(--surface3); border-left: 2px solid var(--accent); }
+
+.conv-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text2);
+  flex-shrink: 0;
+  border: 1px solid var(--border2);
+}
+
+.conv-info { flex: 1; min-width: 0; }
+
+.conv-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.conv-name { font-size: 0.82rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-time { font-size: 0.68rem; color: var(--text3); flex-shrink: 0; margin-left: 0.3rem; }
+.conv-preview { font-size: 0.75rem; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.status-dot.bot { background: var(--accent); }
+.status-dot.escalated { background: var(--warn); }
+.status-dot.missed { background: var(--danger); }
+.status-dot.resolved { background: var(--text3); }
+
+.unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* Sidebar footer */
+.sidebar-footer {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon-btn {
+  flex: 1;
+  padding: 0.45rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+/* ── Chat area ── */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.chat-header {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface);
+}
+
+.chat-header-info { flex: 1; }
+.chat-header-name { font-size: 0.92rem; font-weight: 600; }
+.chat-header-sub { font-size: 0.72rem; color: var(--text2); margin-top: 1px; }
+
+.chat-header-actions { display: flex; gap: 0.4rem; }
+
+.hdr-btn {
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text2);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.hdr-btn:hover { background: var(--surface2); color: var(--text); }
+.hdr-btn.warn { border-color: #3d2a00; color: var(--warn); }
+.hdr-btn.warn:hover { background: var(--warn-bg); }
+.hdr-btn.danger { border-color: #3d0808; color: var(--danger); }
+.hdr-btn.danger:hover { background: var(--danger-bg); }
+.hdr-btn.accent { border-color: #0d3320; color: var(--accent); }
+.hdr-btn.accent:hover { background: var(--accent-bg); }
+
+/* Messages */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.msg-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+.msg-row.incoming { justify-content: flex-start; }
+.msg-row.outgoing { justify-content: flex-end; }
+.msg-row.bot-msg { justify-content: flex-start; }
+
+.msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+
+.bubble {
+  max-width: 68%;
+  padding: 0.6rem 0.85rem;
+  border-radius: 14px;
+  font-size: 0.83rem;
+  line-height: 1.5;
+}
+
+.incoming .bubble {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+.outgoing .bubble {
+  background: #1a2e1a;
+  border: 1px solid #1e3d1e;
+  color: var(--text);
+  border-bottom-right-radius: 4px;
+}
+
+.bot-msg .bubble {
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+.msg-meta {
+  font-size: 0.65rem;
+  color: var(--text3);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.msg-meta .bot-tag {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid #0d2e15;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.6rem;
+  font-weight: 500;
+}
+
+.conf-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.6rem;
+  color: var(--text3);
+}
+
+.conf-fill {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.6;
+}
+
+.date-divider {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text3);
+  padding: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.date-divider::before, .date-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Empty state */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text3);
+  gap: 0.5rem;
+}
+
+.empty-icon { font-size: 2rem; opacity: 0.3; }
+.empty-text { font-size: 0.82rem; }
+
+/* Reply bar */
+.reply-bar {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.reply-input {
+  flex: 1;
+  padding: 0.6rem 0.85rem;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  color: var(--text);
+  font-size: 0.83rem;
+  font-family: var(--font);
+  outline: none;
+  resize: none;
+  max-height: 120px;
+  line-height: 1.4;
+}
+
+.reply-input::placeholder { color: var(--text3); }
+.reply-input:focus { border-color: #3a3a3a; }
+
+.send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.send-btn:hover { background: var(--accent-dim); }
+
+.send-btn svg { width: 16px; height: 16px; fill: #000; }
+
+/* ── Detail panel ── */
+.detail-panel {
+  width: var(--detail-w);
+  min-width: var(--detail-w);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-panel::-webkit-scrollbar { width: 4px; }
+.detail-panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.detail-section {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-label { font-size: 0.68rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem; }
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.detail-key { font-size: 0.75rem; color: var(--text2); }
+.detail-val { font-size: 0.75rem; color: var(--text); font-weight: 500; text-align: right; max-width: 55%; word-break: break-all; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.chip.bot { background: var(--accent-bg); color: var(--accent); border: 1px solid #0d2e15; }
+.chip.escalated { background: var(--warn-bg); color: var(--warn); border: 1px solid #3d2a00; }
+.chip.missed { background: var(--danger-bg); color: var(--danger); border: 1px solid #3d0808; }
+.chip.resolved { background: var(--surface3); color: var(--text2); border: 1px solid var(--border2); }
+
+.action-btn {
+  width: 100%;
+  padding: 0.5rem;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text2);
+  font-size: 0.77rem;
+  cursor: pointer;
+  margin-bottom: 0.4rem;
+  transition: all 0.15s;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.action-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+.action-btn.green:hover { background: var(--accent-bg); color: var(--accent); border-color: #0d2e15; }
+.action-btn.warn:hover { background: var(--warn-bg); color: var(--warn); border-color: #3d2a00; }
+.action-btn.red:hover { background: var(--danger-bg); color: var(--danger); border-color: #3d0808; }
+
+/* Missed questions panel */
+.missed-list { flex: 1; overflow-y: auto; }
+
+.missed-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.missed-item:hover { background: var(--surface2); }
+
+.missed-q { font-size: 0.78rem; color: var(--text); margin-bottom: 3px; }
+.missed-meta { font-size: 0.68rem; color: var(--text3); display: flex; gap: 0.5rem; }
+
+.missed-tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid #3d0808;
+  font-size: 0.63rem;
+}
+
+/* Stats bar */
+.stats-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.stat {
+  flex: 1;
+  padding: 0.6rem;
+  text-align: center;
+  border-right: 1px solid var(--border);
+}
+
+.stat:last-child { border-right: none; }
+.stat-num { font-size: 1.1rem; font-weight: 600; }
+.stat-label { font-size: 0.62rem; color: var(--text3); margin-top: 1px; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+}
+
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Mobile nav */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 100;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  :root { --sidebar-w: 100vw; --detail-w: 100vw; }
+
+  .app { position: relative; }
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 56px; z-index: 10; transform: translateX(-100%); transition: transform 0.25s; }
+  .sidebar.open { transform: translateX(0); }
+  .detail-panel { position: fixed; top: 0; right: 0; bottom: 56px; z-index: 10; transform: translateX(100%); transition: transform 0.25s; }
+  .detail-panel.open { transform: translateX(0); }
+  .chat-area { padding-bottom: 56px; }
+  .mobile-nav { display: flex; }
+
+  .mobile-nav-btn {
+    flex: 1;
+    padding: 0.6rem;
+    background: transparent;
+    border: none;
+    color: var(--text2);
+    font-size: 0.65rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    transition: color 0.15s;
+  }
+
+  .mobile-nav-btn.active { color: var(--accent); }
+
+  .nav-icon { font-size: 1.1rem; }
+}
+
+@media (max-width: 1200px) {
+  .detail-panel { display: none; }
+  .detail-panel.open { display: flex; }
+}
+
+/* Loading overlay */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 1rem;
+  background: var(--bg);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-text { font-size: 0.8rem; color: var(--text3); }
+
+/* Realtime indicator */
+.realtime-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading" id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Loading inbox…</div>
+</div>
+
+<!-- App -->
+<div class="app" id="app" style="display:none;">
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img class="logo-sm" src="https://sdfltd.com/sdf.jpg" alt="SDF" onerror="this.style.display='none';document.getElementById('logo-fb').style.display='flex'">
+      <div class="logo-fallback" id="logo-fb" style="display:none;">SDF</div>
+      <div>
+        <div class="sidebar-title">SDF Inbox</div>
+        <div class="sidebar-sub">
+          <span class="realtime-dot"></span> Live
+        </div>
+      </div>
+      <div class="sidebar-user">
+        <div class="avatar" id="user-avatar" title="Sign out" onclick="signOut()">—</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat">
+        <div class="stat-num" id="stat-active">—</div>
+        <div class="stat-label">Active</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-escalated" style="color:var(--warn)">—</div>
+        <div class="stat-label">Escalated</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-missed" style="color:var(--danger)">—</div>
+        <div class="stat-label">Missed</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="all" onclick="switchTab('all', this)">All</button>
+      <button class="tab" data-tab="bot" onclick="switchTab('bot', this)">Bot</button>
+      <button class="tab" data-tab="escalated" onclick="switchTab('escalated', this)">
+        Escalated <span class="badge" id="esc-badge" style="display:none">0</span>
+      </button>
+      <button class="tab" data-tab="missed" onclick="switchTab('missed', this)">
+        Missed <span class="badge" id="miss-badge" style="display:none">0</span>
+      </button>
+    </div>
+
+    <!-- Search -->
+    <div class="search-wrap">
+      <input class="search-input" type="text" placeholder="Search conversations…" oninput="filterConversations(this.value)">
+    </div>
+
+    <!-- Conv list -->
+    <div class="conv-list" id="conv-list">
+      <div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.8rem;">Loading…</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="sidebar-footer">
+      <button class="icon-btn" onclick="refreshData()">↺ Refresh</button>
+      <button class="icon-btn" onclick="signOut()">→ Sign out</button>
+    </div>
+  </div>
+
+  <!-- Chat area -->
+  <div class="chat-area">
+    <!-- Header -->
+    <div class="chat-header" id="chat-header" style="display:none;">
+      <div class="conv-avatar" id="ch-avatar">?</div>
+      <div class="chat-header-info">
+        <div class="chat-header-name" id="ch-name">—</div>
+        <div class="chat-header-sub" id="ch-sub">—</div>
+      </div>
+      <div class="chat-header-actions">
+        <button class="hdr-btn accent" onclick="markResolved()">✓ Resolve</button>
+        <button class="hdr-btn warn" onclick="escalateConv()">⚡ Escalate</button>
+        <button class="hdr-btn" onclick="toggleDetail()">⊞ Details</button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages" id="messages">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">💬</div>
+        <div class="empty-text">Select a conversation</div>
+      </div>
+    </div>
+
+    <!-- Reply bar -->
+    <div class="reply-bar" id="reply-bar" style="display:none;">
+      <textarea class="reply-input" id="reply-input" placeholder="Type a reply…" rows="1" onkeydown="handleReplyKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" onclick="sendReply()">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-section">
+      <div class="detail-label">Contact</div>
+      <div id="detail-contact">
+        <div style="color:var(--text3);font-size:0.78rem;">No conversation selected</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Conversation</div>
+      <div id="detail-conv"></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Actions</div>
+      <button class="action-btn green" onclick="markResolved()">✓ Mark as resolved</button>
+      <button class="action-btn warn" onclick="escalateConv()">⚡ Escalate to human</button>
+      <button class="action-btn" onclick="muteConv()">🔕 Mute notifications</button>
+      <button class="action-btn red" onclick="blockContact()">⊘ Block contact</button>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Bot confidence</div>
+      <div id="detail-confidence" style="font-size:0.78rem;color:var(--text2);">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile nav -->
+<div class="mobile-nav">
+  <button class="mobile-nav-btn active" id="nav-inbox" onclick="mobileNav('sidebar')">
+    <span class="nav-icon">💬</span>
+    Inbox
+  </button>
+  <button class="mobile-nav-btn" id="nav-chat" onclick="mobileNav('chat')">
+    <span class="nav-icon">📨</span>
+    Chat
+  </button>
+  <button class="mobile-nav-btn" id="nav-detail" onclick="mobileNav('detail')">
+    <span class="nav-icon">ℹ️</span>
+    Details
+  </button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4bHdsZXZibXl5aHVvb3VsZnphIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTk5ODc5MiwiZXhwIjoyMDk3NTc0NzkyfQ.o4CrI2hAtXZXgO9EVkWdv4NY9UPvI4jhA7f0ugQ9LaA';
+
+const HEADERS = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json'
+};
+
+let currentUser = null;
+let conversations = [];
+let filteredConvs = [];
+let activeConvId = null;
+let activeTab = 'all';
+let activeConv = null;
+let notifGranted = false;
+let realtimeWs = null;
+
+// ── Init ──
+window.addEventListener('load', async () => {
+  const stored = sessionStorage.getItem('sdf_user');
+  if (!stored) { window.location.href = 'index.html'; return; }
+  currentUser = JSON.parse(stored);
+
+  // Set avatar initials
+  const initials = (currentUser.full_name || currentUser.email).split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('user-avatar').textContent = initials;
+
+  // Request notifications
+  if ('Notification' in window && Notification.permission !== 'denied') {
+    const perm = await Notification.requestPermission();
+    notifGranted = perm === 'granted';
+  }
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  await loadData();
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  // Start realtime
+  startRealtime();
+});
+
+// ── Data loading ──
+async function loadData() {
+  try {
+    const [convsRes, missedRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/conversations?business_id=eq.${await getBusinessId()}&order=updated_at.desc&limit=100&select=*`, { headers: HEADERS }),
+      fetch(`${SUPABASE_URL}/rest/v1/missed_questions?order=created_at.desc&limit=50&select=*`, { headers: HEADERS })
+    ]);
+
+    if (convsRes.ok) {
+      conversations = await convsRes.json();
+    } else {
+      conversations = generateDemoData();
+    }
+
+    updateStats();
+    renderConversations();
+
+  } catch(e) {
+    conversations = generateDemoData();
+    updateStats();
+    renderConversations();
+  }
+}
+
+async function getBusinessId() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/businesses?slug=eq.sdf-clothing&select=id`, { headers: HEADERS });
+    const data = await res.json();
+    return data[0]?.id || '';
+  } catch(e) { return ''; }
+}
+
+// Demo data for when DB has no conversations
+function generateDemoData() {
+  const now = new Date();
+  const mins = m => new Date(now - m * 60000).toISOString();
+
+  return [
+    { id: 'demo1', channel_identifier: '+1 (555) 0134', last_message: 'What is your MOQ for t-shirts?', status: 'bot', updated_at: mins(2), message_count: 4, bot_handled: true, confidence_avg: 0.87 },
+    { id: 'demo2', channel_identifier: '+44 7700 900123', last_message: 'Can I visit your factory next week?', status: 'escalated', updated_at: mins(8), message_count: 12, bot_handled: false, confidence_avg: 0.42 },
+    { id: 'demo3', channel_identifier: '+49 30 12345678', last_message: 'Do you have GOTS certification?', status: 'bot', updated_at: mins(15), message_count: 3, bot_handled: true, confidence_avg: 0.94 },
+    { id: 'demo4', channel_identifier: '+1 (555) 0187', last_message: 'What about your pricing for hoodies?', status: 'missed', updated_at: mins(22), message_count: 7, bot_handled: false, confidence_avg: 0.28 },
+    { id: 'demo5', channel_identifier: '+61 400 123 456', last_message: 'Thanks, we will place an order soon.', status: 'resolved', updated_at: mins(45), message_count: 23, bot_handled: true, confidence_avg: 0.82 },
+    { id: 'demo6', channel_identifier: '+33 6 12 34 56 78', last_message: 'What fabrics do you work with?', status: 'bot', updated_at: mins(60), message_count: 6, bot_handled: true, confidence_avg: 0.91 },
+    { id: 'demo7', channel_identifier: '+1 (555) 0255', last_message: 'Can you do sublimation printing?', status: 'bot', updated_at: mins(90), message_count: 5, bot_handled: true, confidence_avg: 0.88 },
+    { id: 'demo8', channel_identifier: '+81 90 1234 5678', last_message: 'Import duty from Bangladesh to Japan?', status: 'missed', updated_at: mins(120), message_count: 2, bot_handled: false, confidence_avg: 0.31 },
+  ];
+}
+
+function generateDemoMessages(conv) {
+  const pairs = {
+    'demo1': [
+      { role: 'user', content: 'Hi, I want to order custom t-shirts.' },
+      { role: 'bot', content: 'Hello! Welcome to SDF Clothing. Our MOQ for OEM/private label is 300 pieces per style. For CMT (where you supply the fabric), the MOQ is 100 pieces. How many pieces are you looking to order?', confidence: 0.87 },
+      { role: 'user', content: 'What is your MOQ for t-shirts?' },
+      { role: 'bot', content: 'Our minimum order quantity is 300 pieces per style for OEM orders, and 100 pieces for CMT orders. Would you like to know about pricing and lead times as well?', confidence: 0.91 },
+    ],
+    'demo2': [
+      { role: 'user', content: 'I want to visit your factory.' },
+      { role: 'bot', content: 'Factory visits are welcome! We are located in Baridhara, Dhaka, Bangladesh. Our working hours are Sunday–Thursday, 9am–6pm Bangladesh time.', confidence: 0.78 },
+      { role: 'user', content: 'Can I visit your factory next week?' },
+      { role: 'bot', content: 'I would need to check availability with our team. Let me connect you with a representative.', confidence: 0.42 },
+      { role: 'escalated', content: 'Conversation escalated to human agent.' },
+      { role: 'agent', content: 'Hi! I can arrange a factory visit for you. Could you share your preferred dates?' },
+    ],
+    'demo3': [
+      { role: 'user', content: 'Do you have GOTS certification?' },
+      { role: 'bot', content: 'Yes! SDF Clothing holds the following certifications: GOTS (Global Organic Textile Standard), OEKO-TEX Standard 100, GRS (Global Recycled Standard), ISO 9001:2015, BSCI, SEDEX, and WRAP. We can provide certification documents upon request.', confidence: 0.94 },
+    ],
+    'demo4': [
+      { role: 'user', content: 'Hello, I need pricing for 500 hoodies.' },
+      { role: 'bot', content: 'For 500 pieces of hoodies, I can give you a general price range. However, exact pricing depends on fabric, GSM, design complexity, and trim details. Could you share more specifics?', confidence: 0.65 },
+      { role: 'user', content: 'What about your pricing for hoodies?' },
+      { role: 'bot', content: 'I need more details to provide accurate pricing. Could you tell me the fabric type, GSM, and any printing or embroidery requirements?', confidence: 0.28 },
+      { role: 'missed', content: 'Question below confidence threshold — flagged for review.' },
+    ],
+  };
+
+  return pairs[conv.id] || [
+    { role: 'user', content: conv.last_message },
+    { role: 'bot', content: 'Thank you for contacting SDF Clothing. How can I assist you today?', confidence: conv.confidence_avg },
+  ];
+}
+
+// ── Stats ──
+function updateStats() {
+  const active = conversations.filter(c => c.status === 'bot' || c.status === 'active').length;
+  const escalated = conversations.filter(c => c.status === 'escalated').length;
+  const missed = conversations.filter(c => c.status === 'missed').length;
+
+  document.getElementById('stat-active').textContent = active;
+  document.getElementById('stat-escalated').textContent = escalated;
+  document.getElementById('stat-missed').textContent = missed;
+
+  const escBadge = document.getElementById('esc-badge');
+  const missBadge = document.getElementById('miss-badge');
+
+  if (escalated > 0) { escBadge.textContent = escalated; escBadge.style.display = 'inline-flex'; }
+  else escBadge.style.display = 'none';
+
+  if (missed > 0) { missBadge.textContent = missed; missBadge.style.display = 'inline-flex'; }
+  else missBadge.style.display = 'none';
+}
+
+// ── Conversations ──
+function switchTab(tab, el) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderConversations();
+}
+
+function filterConversations(query) {
+  renderConversations(query);
+}
+
+function renderConversations(search = '') {
+  let list = conversations;
+
+  if (activeTab !== 'all') {
+    list = list.filter(c => c.status === activeTab);
+  }
+
+  if (search) {
+    const q = search.toLowerCase();
+    list = list.filter(c =>
+      (c.channel_identifier || '').toLowerCase().includes(q) ||
+      (c.last_message || '').toLowerCase().includes(q)
+    );
+  }
+
+  filteredConvs = list;
+
+  const container = document.getElementById('conv-list');
+
+  if (!list.length) {
+    container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.8rem;">No conversations</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(conv => {
+    const initials = (conv.channel_identifier || '?').replace(/\D/g,'').slice(-2) || '??';
+    const time = formatTime(conv.updated_at);
+    const isActive = conv.id === activeConvId;
+    const statusClass = conv.status || 'bot';
+
+    return `
+      <div class="conv-item ${isActive ? 'active' : ''}" onclick="openConversation('${conv.id}')">
+        <div class="conv-avatar">${initials}</div>
+        <div class="conv-info">
+          <div class="conv-top">
+            <div class="conv-name">${conv.channel_identifier || 'Unknown'}</div>
+            <div class="conv-time">${time}</div>
+          </div>
+          <div class="conv-preview">
+            <span class="status-dot ${statusClass}"></span>
+            ${escapeHtml(conv.last_message || 'No messages')}
+          </div>
+        </div>
+        ${conv.status === 'escalated' || conv.status === 'missed' ? '<div class="unread-dot"></div>' : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Open conversation ──
+async function openConversation(id) {
+  activeConvId = id;
+  activeConv = conversations.find(c => c.id === id);
+  if (!activeConv) return;
+
+  // Update sidebar highlight
+  renderConversations(document.querySelector('.search-input')?.value || '');
+
+  // Show chat header
+  const header = document.getElementById('chat-header');
+  header.style.display = 'flex';
+  document.getElementById('reply-bar').style.display = 'flex';
+
+  const initials = (activeConv.channel_identifier || '?').replace(/\D/g,'').slice(-2) || '??';
+  document.getElementById('ch-avatar').textContent = initials;
+  document.getElementById('ch-name').textContent = activeConv.channel_identifier || 'Unknown';
+  document.getElementById('ch-sub').innerHTML = `<span class="chip ${activeConv.status || 'bot'}">${statusLabel(activeConv.status)}</span> · ${activeConv.message_count || 0} messages`;
+
+  // Load messages
+  await loadMessages(id);
+
+  // Update detail panel
+  updateDetailPanel(activeConv);
+
+  // Mobile: switch to chat view
+  if (window.innerWidth <= 900) {
+    mobileNav('chat');
+  }
+}
+
+async function loadMessages(convId) {
+  const container = document.getElementById('messages');
+  container.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text3);font-size:0.78rem;">Loading…</div>';
+
+  let messages = [];
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/conversations?id=eq.${convId}&select=messages`, { headers: HEADERS });
+    if (res.ok) {
+      const data = await res.json();
+      messages = data[0]?.messages || [];
+    }
+  } catch(e) {}
+
+  // Use demo data if no messages
+  if (!messages.length) {
+    const conv = conversations.find(c => c.id === convId);
+    messages = generateDemoMessages(conv || {});
+  }
+
+  renderMessages(messages);
+}
+
+function renderMessages(messages) {
+  const container = document.getElementById('messages');
+
+  if (!messages.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><div class="empty-text">No messages yet</div></div>';
+    return;
+  }
+
+  let html = '<div class="date-divider">Today</div>';
+
+  messages.forEach(msg => {
+    const role = msg.role || 'user';
+
+    if (role === 'escalated' || role === 'missed') {
+      html += `
+        <div style="text-align:center;padding:0.3rem 0;">
+          <span style="font-size:0.7rem;color:${role === 'escalated' ? 'var(--warn)' : 'var(--danger)'};background:${role === 'escalated' ? 'var(--warn-bg)' : 'var(--danger-bg)'};padding:3px 10px;border-radius:20px;border:1px solid ${role === 'escalated' ? '#3d2a00' : '#3d0808'}">
+            ${msg.content}
+          </span>
+        </div>`;
+      return;
+    }
+
+    const isIncoming = role === 'user';
+    const isBot = role === 'bot';
+    const isAgent = role === 'agent';
+    const rowClass = isIncoming ? 'incoming' : isBot ? 'bot-msg' : 'outgoing';
+
+    const avatarLabel = isIncoming ? '👤' : isBot ? '⚡' : '👨‍💼';
+
+    let metaHtml = '';
+    if (isBot && msg.confidence !== undefined) {
+      const pct = Math.round(msg.confidence * 100);
+      const color = pct >= 70 ? 'var(--accent)' : pct >= 50 ? 'var(--warn)' : 'var(--danger)';
+      metaHtml = `
+        <div class="msg-meta">
+          <span class="bot-tag">Bot</span>
+          <span class="conf-bar">
+            <span class="conf-fill" style="width:${pct * 0.5}px;background:${color}"></span>
+            ${pct}% confidence
+          </span>
+        </div>`;
+    } else if (isAgent) {
+      metaHtml = `<div class="msg-meta"><span style="font-size:0.65rem;color:var(--accent)">Agent reply</span></div>`;
+    }
+
+    html += `
+      <div class="msg-row ${rowClass}">
+        ${!isIncoming ? '' : `<div class="msg-avatar">${avatarLabel}</div>`}
+        <div>
+          <div class="bubble">${escapeHtml(msg.content)}</div>
+          ${metaHtml}
+        </div>
+        ${isIncoming ? '' : `<div class="msg-avatar">${avatarLabel}</div>`}
+      </div>`;
+  });
+
+  container.innerHTML = html;
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Detail panel ──
+function updateDetailPanel(conv) {
+  document.getElementById('detail-contact').innerHTML = `
+    <div class="detail-row"><span class="detail-key">Number</span><span class="detail-val">${conv.channel_identifier || '—'}</span></div>
+    <div class="detail-row"><span class="detail-key">Channel</span><span class="detail-val">Messaging</span></div>
+  `;
+
+  const confPct = Math.round((conv.confidence_avg || 0) * 100);
+  const confColor = confPct >= 70 ? 'var(--accent)' : confPct >= 50 ? 'var(--warn)' : 'var(--danger)';
+
+  document.getElementById('detail-conv').innerHTML = `
+    <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="chip ${conv.status || 'bot'}">${statusLabel(conv.status)}</span></span></div>
+    <div class="detail-row"><span class="detail-key">Messages</span><span class="detail-val">${conv.message_count || 0}</span></div>
+    <div class="detail-row"><span class="detail-key">Last update</span><span class="detail-val">${formatTime(conv.updated_at)}</span></div>
+  `;
+
+  document.getElementById('detail-confidence').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <div style="flex:1;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;">
+        <div style="width:${confPct}%;height:100%;background:${confColor};border-radius:2px;transition:width 0.4s;"></div>
+      </div>
+      <span style="font-size:0.75rem;font-weight:500;color:${confColor}">${confPct}%</span>
+    </div>
+    <div style="font-size:0.7rem;color:var(--text3);">${confPct >= 70 ? 'High confidence — bot handled well' : confPct >= 50 ? 'Medium — may need review' : 'Low — consider escalating'}</div>
+  `;
+}
+
+// ── Actions ──
+async function sendReply() {
+  const input = document.getElementById('reply-input');
+  const text = input.value.trim();
+  if (!text || !activeConvId) return;
+
+  input.value = '';
+  autoResize(input);
+
+  // Add optimistic message
+  const container = document.getElementById('messages');
+  const msgEl = document.createElement('div');
+  msgEl.className = 'msg-row outgoing';
+  msgEl.innerHTML = `
+    <div>
+      <div class="bubble">${escapeHtml(text)}</div>
+      <div class="msg-meta"><span style="font-size:0.65rem;color:var(--accent)">Agent reply</span></div>
+    </div>
+    <div class="msg-avatar">👨‍💼</div>
+  `;
+  container.appendChild(msgEl);
+  container.scrollTop = container.scrollHeight;
+
+  showToast('Reply sent');
+
+  // TODO: send via WhatsApp API / Edge Function
+}
+
+async function markResolved() {
+  if (!activeConvId) return;
+  await updateConvStatus(activeConvId, 'resolved');
+  showToast('Marked as resolved');
+}
+
+async function escalateConv() {
+  if (!activeConvId) return;
+  await updateConvStatus(activeConvId, 'escalated');
+  showToast('Escalated to human agent');
+}
+
+async function updateConvStatus(id, status) {
+  const conv = conversations.find(c => c.id === id);
+  if (conv) conv.status = status;
+
+  updateStats();
+  renderConversations();
+
+  if (activeConv) {
+    activeConv.status = status;
+    document.getElementById('ch-sub').innerHTML = `<span class="chip ${status}">${statusLabel(status)}</span> · ${activeConv.message_count || 0} messages`;
+    updateDetailPanel(activeConv);
+  }
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/conversations?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: HEADERS,
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() })
+    });
+  } catch(e) {}
+}
+
+function muteConv() { showToast('Notifications muted for this conversation'); }
+function blockContact() { showToast('Contact blocked'); }
+
+// ── Realtime ──
+function startRealtime() {
+  try {
+    const wsUrl = SUPABASE_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SUPABASE_KEY + '&vsn=1.0.0';
+    realtimeWs = new WebSocket(wsUrl);
+
+    realtimeWs.onopen = () => {
+      realtimeWs.send(JSON.stringify({
+        topic: 'realtime:public:conversations',
+        event: 'phx_join',
+        payload: {},
+        ref: '1'
+      }));
+    };
+
+    realtimeWs.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.event === 'INSERT' || msg.event === 'UPDATE') {
+        const record = msg.payload?.record;
+        if (!record) return;
+
+        const existing = conversations.findIndex(c => c.id === record.id);
+        if (existing >= 0) {
+          conversations[existing] = { ...conversations[existing], ...record };
+        } else {
+          conversations.unshift(record);
+          if (notifGranted) {
+            new Notification('New message — SDF Inbox', {
+              body: record.last_message || 'New conversation',
+              icon: 'https://sdfltd.com/sdf.jpg',
+              badge: 'https://sdfltd.com/sdf.jpg'
+            });
+          }
+        }
+
+        updateStats();
+        renderConversations();
+      }
+    };
+
+    realtimeWs.onclose = () => {
+      setTimeout(startRealtime, 3000);
+    };
+
+  } catch(e) {}
+}
+
+// ── Misc ──
+async function refreshData() {
+  showToast('Refreshing…');
+  await loadData();
+  showToast('Updated');
+}
+
+function toggleDetail() {
+  const panel = document.getElementById('detail-panel');
+  panel.classList.toggle('open');
+}
+
+function mobileNav(view) {
+  const sidebar = document.getElementById('sidebar');
+  const detail = document.getElementById('detail-panel');
+
+  sidebar.classList.remove('open');
+  detail.classList.remove('open');
+
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+
+  if (view === 'sidebar') {
+    sidebar.classList.add('open');
+    document.getElementById('nav-inbox').classList.add('active');
+  } else if (view === 'detail') {
+    detail.classList.add('open');
+    document.getElementById('nav-detail').classList.add('active');
+  } else {
+    document.getElementById('nav-chat').classList.add('active');
+  }
+}
+
+function handleReplyKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendReply();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function signOut() {
+  sessionStorage.removeItem('sdf_user');
+  window.location.href = 'index.html';
+}
+
+function statusLabel(status) {
+  return { bot: 'Bot', escalated: 'Escalated', missed: 'Missed', resolved: 'Resolved', active: 'Active' }[status] || status || 'Bot';
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return 'now';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
