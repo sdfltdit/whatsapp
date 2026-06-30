@@ -1,13 +1,17 @@
 <!DOCTYPE html>
-<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SDF Clothing — Staff Portal</title>
+
+<title>SDF Clothing Staff Dashboard</title>
+<link rel="icon" type="image/png" href="sdf.png">
+<link rel="apple-touch-icon" href="sdf.png">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0a0a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
+</head>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -210,8 +214,8 @@
     >
     <div class="logo-img-fallback" id="logo-fallback" style="display:none;">SDF</div>
     <div>
-      <div class="brand-name">SDF Clothing</div>
-      <div class="brand-sub">Staff Portal — Secure Login</div>
+      <div class="brand-name">Staff Dashboard</div>
+      <div class="brand-sub">Staff Access Portal</div>
     </div>
   </div>
 
@@ -235,10 +239,13 @@
   <div class="error-msg" id="error-msg"></div>
 
   <div class="footer-note">
-    <span class="dot"></span>
-    Secured connection · SDF Clothing &copy; 2025
-  </div>
+  <span class="dot"></span>
+  Secured connection · SDF Clothing &copy; <span id="currentYear"></span>
 </div>
+
+<script>
+  document.getElementById("currentYear").textContent = new Date().getFullYear();
+</script>
 
 <script>
 const SUPABASE_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co';
