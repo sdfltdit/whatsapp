@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SDF Inbox</title>
+<title>SDF Whatsapp Inbox</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0a0a">
 <style>
@@ -293,7 +293,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   <!-- Sidebar -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <img class="logo-sm" src="https://sdfltd.com/sdf.jpg" alt="SDF" onerror="this.style.display='none';document.getElementById('logo-fb').style.display='flex'">
+      <img class="logo-sm" src="sdf.jpg" alt="SDF" onerror="this.style.display='none';document.getElementById('logo-fb').style.display='flex'">
       <div class="logo-fallback" id="logo-fb" style="display:none;">SDF</div>
       <div>
         <div class="sidebar-title">SDF Inbox</div>
@@ -521,7 +521,7 @@ async function loadData() {
     if (lastConvIds.size > 0) {
       for (const c of data) {
         if (!lastConvIds.has(c.id)) {
-          if (notifGranted) new Notification('New message — SDF Inbox', { body: c.last_message || 'New conversation', icon: 'https://sdfltd.com/sdf.jpg' });
+          if (notifGranted) new Notification('New message — SDF Inbox', { body: c.last_message || 'New conversation', icon: 'sdf.jpg' });
           playBeep();
         }
       }
