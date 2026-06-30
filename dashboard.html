@@ -857,182 +857,105 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 <script>
 const SUPABASE_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4bHdsZXZibXl5aHVvb3VsZnphIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTk5ODc5MiwiZXhwIjoyMDk3NTc0NzkyfQ.o4CrI2hAtXZXgO9EVkWdv4NY9UPvI4jhA7f0ugQ9LaA';
-
-const WA_PHONE_NUMBER_ID = '1171658772697634';
-const WA_ACCESS_TOKEN     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4bHdsZXZibXl5aHVvb3VsZnphIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTk5ODc5MiwiZXhwIjoyMDk3NTc0NzkyfQ.o4CrI2hAtXZXgO9EVkWdv4NY9UPvI4jhA7f0ugQ9LaA';
-let syncTimer = null;
-let lastConvCount = 0;
-const notifSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAA...');
-
-const HEADERS = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Content-Type': 'application/json'
-};
+const WA_PHONE_ID  = '1171658772697634';
+const WA_TOKEN     = 'EAAOtTQ4BUhkBR1FNLiZAUM0s6CCff27hwpE1hmzdQf1HQSBeOgNtVrZBxMM2D4274cDkRmIZCgsiy4kZAWfULXvRFzPlIkv13XAfEZA8g5KnZCr5TSpNxkR33c8yIEITNSshvxVllelSDytEa6eDRHgz6j3H657RCNBbCIWzBcnDH29eZAaZAvj9RActBAZDZD';
+const PHONE_NUM    = '+8801819172080';
+const HEADERS      = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 
 let currentUser = null;
 let conversations = [];
 let filteredConvs = [];
-let activeConvId = null;
-let activeTab = 'all';
-let activeConv = null;
-let notifGranted = false;
-let realtimeWs = null;
+let activeConvId  = null;
+let activeTab     = 'all';
+let activeConv    = null;
+let notifGranted  = false;
+let syncTimer     = null;
+let msgSyncTimer  = null;
+let lastConvIds   = new Set();
 
 // ── Init ──
 window.addEventListener('load', async () => {
   const stored = sessionStorage.getItem('sdf_user');
   if (!stored) { window.location.href = 'index.html'; return; }
   currentUser = JSON.parse(stored);
-
-  // Set avatar initials
-  const initials = (currentUser.full_name || currentUser.email).split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  const initials = (currentUser.full_name || currentUser.email).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
 
-  // Request notifications
   if ('Notification' in window && Notification.permission !== 'denied') {
-    const perm = await Notification.requestPermission();
-    notifGranted = perm === 'granted';
+    const p = await Notification.requestPermission();
+    notifGranted = p === 'granted';
   }
-
-  // Register service worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 
   await loadData();
-
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-
-  // Start realtime
   startRealtime();
 });
 
-// ── Data loading ──
+// ── Load conversations from wa_conversations ──
 async function loadData() {
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/wa_conversations?order=last_message_at.desc.nullslast&limit=100`,
-      { headers: HEADERS }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        // Check for new conversations and notify
-        if (lastConvCount > 0 && data.length > lastConvCount) {
-          const newest = data[0];
-          if (notifGranted) {
-            new Notification('New message — SDF Inbox', {
-              body: newest.last_message || 'New conversation',
-              icon: 'https://sdfltd.com/sdf.jpg'
-            });
-          }
-          try { new Audio('data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAAOTku//MUZAkAAAGkAAAAAAAAA0gAAAAANVVV').play().catch(()=>{}); } catch(e) {}
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?order=last_message_at.desc.nullslast,created_at.desc&limit=100`, { headers: HEADERS });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!Array.isArray(data)) return;
+
+    // Detect new conversations for notification
+    const newIds = new Set(data.map(c => c.id));
+    if (lastConvIds.size > 0) {
+      for (const c of data) {
+        if (!lastConvIds.has(c.id)) {
+          if (notifGranted) new Notification('New message — SDF Inbox', { body: c.last_message || 'New conversation', icon: 'https://sdfltd.com/sdf.jpg' });
+          playBeep();
         }
-        lastConvCount = data.length;
-        
-        // Map wa_conversations fields to expected format
-        conversations = data.map(c => ({
-          id: c.id,
-          channel_identifier: c.contact_name || c.phone_number || 'Unknown',
-          phone_number: c.phone_number,
-          contact_name: c.contact_name,
-          last_message: c.last_message,
-          status: c.status || 'bot',
-          updated_at: c.last_message_at || c.created_at,
-          message_count: 0,
-          confidence_avg: 0,
-          unread_count: c.unread_count || 0
-        }));
       }
     }
+    lastConvIds = newIds;
+
+    conversations = data.map(c => ({
+      id:                 c.id,
+      channel_identifier: c.contact_name || c.phone_number || 'Unknown',
+      phone_number:       c.phone_number || '',
+      contact_name:       c.contact_name || '',
+      last_message:       c.last_message || '',
+      status:             c.status || 'open',
+      updated_at:         c.last_message_at || c.created_at,
+      message_count:      0,
+      confidence_avg:     0,
+      unread_count:       c.unread_count || 0
+    }));
+
     updateStats();
     renderConversations();
-  } catch(e) {
-    updateStats();
-    renderConversations();
-  }
+  } catch(e) {}
 }
 
-async function getBusinessId() {
+function playBeep() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/businesses?slug=eq.sdf-clothing&select=id`, { headers: HEADERS });
-    const data = await res.json();
-    return data[0]?.id || '';
-  } catch(e) { return ''; }
-}
-
-// Demo data for when DB has no conversations
-function generateDemoData() {
-  const now = new Date();
-  const mins = m => new Date(now - m * 60000).toISOString();
-
-  return [
-    { id: 'demo1', channel_identifier: '+1 (555) 0134', last_message: 'What is your MOQ for t-shirts?', status: 'bot', updated_at: mins(2), message_count: 4, bot_handled: true, confidence_avg: 0.87 },
-    { id: 'demo2', channel_identifier: '+44 7700 900123', last_message: 'Can I visit your factory next week?', status: 'escalated', updated_at: mins(8), message_count: 12, bot_handled: false, confidence_avg: 0.42 },
-    { id: 'demo3', channel_identifier: '+49 30 12345678', last_message: 'Do you have GOTS certification?', status: 'bot', updated_at: mins(15), message_count: 3, bot_handled: true, confidence_avg: 0.94 },
-    { id: 'demo4', channel_identifier: '+1 (555) 0187', last_message: 'What about your pricing for hoodies?', status: 'missed', updated_at: mins(22), message_count: 7, bot_handled: false, confidence_avg: 0.28 },
-    { id: 'demo5', channel_identifier: '+61 400 123 456', last_message: 'Thanks, we will place an order soon.', status: 'resolved', updated_at: mins(45), message_count: 23, bot_handled: true, confidence_avg: 0.82 },
-    { id: 'demo6', channel_identifier: '+33 6 12 34 56 78', last_message: 'What fabrics do you work with?', status: 'bot', updated_at: mins(60), message_count: 6, bot_handled: true, confidence_avg: 0.91 },
-    { id: 'demo7', channel_identifier: '+1 (555) 0255', last_message: 'Can you do sublimation printing?', status: 'bot', updated_at: mins(90), message_count: 5, bot_handled: true, confidence_avg: 0.88 },
-    { id: 'demo8', channel_identifier: '+81 90 1234 5678', last_message: 'Import duty from Bangladesh to Japan?', status: 'missed', updated_at: mins(120), message_count: 2, bot_handled: false, confidence_avg: 0.31 },
-  ];
-}
-
-function generateDemoMessages(conv) {
-  const pairs = {
-    'demo1': [
-      { role: 'user', content: 'Hi, I want to order custom t-shirts.' },
-      { role: 'bot', content: 'Hello! Welcome to SDF Clothing. Our MOQ for OEM/private label is 300 pieces per style. For CMT (where you supply the fabric), the MOQ is 100 pieces. How many pieces are you looking to order?', confidence: 0.87 },
-      { role: 'user', content: 'What is your MOQ for t-shirts?' },
-      { role: 'bot', content: 'Our minimum order quantity is 300 pieces per style for OEM orders, and 100 pieces for CMT orders. Would you like to know about pricing and lead times as well?', confidence: 0.91 },
-    ],
-    'demo2': [
-      { role: 'user', content: 'I want to visit your factory.' },
-      { role: 'bot', content: 'Factory visits are welcome! We are located in Baridhara, Dhaka, Bangladesh. Our working hours are Sunday–Thursday, 9am–6pm Bangladesh time.', confidence: 0.78 },
-      { role: 'user', content: 'Can I visit your factory next week?' },
-      { role: 'bot', content: 'I would need to check availability with our team. Let me connect you with a representative.', confidence: 0.42 },
-      { role: 'escalated', content: 'Conversation escalated to human agent.' },
-      { role: 'agent', content: 'Hi! I can arrange a factory visit for you. Could you share your preferred dates?' },
-    ],
-    'demo3': [
-      { role: 'user', content: 'Do you have GOTS certification?' },
-      { role: 'bot', content: 'Yes! SDF Clothing holds the following certifications: GOTS (Global Organic Textile Standard), OEKO-TEX Standard 100, GRS (Global Recycled Standard), ISO 9001:2015, BSCI, SEDEX, and WRAP. We can provide certification documents upon request.', confidence: 0.94 },
-    ],
-    'demo4': [
-      { role: 'user', content: 'Hello, I need pricing for 500 hoodies.' },
-      { role: 'bot', content: 'For 500 pieces of hoodies, I can give you a general price range. However, exact pricing depends on fabric, GSM, design complexity, and trim details. Could you share more specifics?', confidence: 0.65 },
-      { role: 'user', content: 'What about your pricing for hoodies?' },
-      { role: 'bot', content: 'I need more details to provide accurate pricing. Could you tell me the fabric type, GSM, and any printing or embroidery requirements?', confidence: 0.28 },
-      { role: 'missed', content: 'Question below confidence threshold — flagged for review.' },
-    ],
-  };
-
-  return pairs[conv.id] || [
-    { role: 'user', content: conv.last_message },
-    { role: 'bot', content: 'Thank you for contacting SDF Clothing. How can I assist you today?', confidence: conv.confidence_avg },
-  ];
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
 }
 
 // ── Stats ──
 function updateStats() {
-  const active = conversations.filter(c => c.status === 'bot' || c.status === 'active').length;
+  const active    = conversations.filter(c => c.status === 'bot' || c.status === 'open' || c.status === 'active').length;
   const escalated = conversations.filter(c => c.status === 'escalated').length;
-  const missed = conversations.filter(c => c.status === 'missed').length;
-
-  document.getElementById('stat-active').textContent = active;
+  const missed    = conversations.filter(c => c.status === 'missed').length;
+  document.getElementById('stat-active').textContent    = active;
   document.getElementById('stat-escalated').textContent = escalated;
-  document.getElementById('stat-missed').textContent = missed;
-
-  const escBadge = document.getElementById('esc-badge');
+  document.getElementById('stat-missed').textContent    = missed;
+  const escBadge  = document.getElementById('esc-badge');
   const missBadge = document.getElementById('miss-badge');
-
-  if (escalated > 0) { escBadge.textContent = escalated; escBadge.style.display = 'inline-flex'; }
-  else escBadge.style.display = 'none';
-
-  if (missed > 0) { missBadge.textContent = missed; missBadge.style.display = 'inline-flex'; }
-  else missBadge.style.display = 'none';
+  if (escalated > 0) { escBadge.textContent = escalated; escBadge.style.display = 'inline-flex'; } else escBadge.style.display = 'none';
+  if (missed > 0)    { missBadge.textContent = missed;    missBadge.style.display = 'inline-flex'; } else missBadge.style.display = 'none';
 }
 
 // ── Conversations ──
@@ -1043,222 +966,124 @@ function switchTab(tab, el) {
   renderConversations();
 }
 
-function filterConversations(query) {
-  renderConversations(query);
-}
+function filterConversations(query) { renderConversations(query); }
 
 function renderConversations(search = '') {
   let list = conversations;
-
-  if (activeTab !== 'all') {
-    list = list.filter(c => c.status === activeTab);
-  }
-
+  if (activeTab !== 'all') list = list.filter(c => c.status === activeTab);
   if (search) {
     const q = search.toLowerCase();
-    list = list.filter(c =>
-      (c.channel_identifier || '').toLowerCase().includes(q) ||
-      (c.last_message || '').toLowerCase().includes(q)
-    );
+    list = list.filter(c => (c.channel_identifier||'').toLowerCase().includes(q) || (c.last_message||'').toLowerCase().includes(q));
   }
-
   filteredConvs = list;
-
   const container = document.getElementById('conv-list');
-
-  if (!list.length) {
-    container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.8rem;">No conversations</div>';
-    return;
-  }
-
+  if (!list.length) { container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.8rem;">No conversations</div>'; return; }
   container.innerHTML = list.map(conv => {
-    const initials = (conv.channel_identifier || '?').replace(/\D/g,'').slice(-2) || '??';
-    const time = formatTime(conv.updated_at);
+    const name     = conv.contact_name || conv.phone_number || 'Unknown';
+    const initials = name.slice(0,2).toUpperCase();
+    const time     = formatTime(conv.updated_at);
     const isActive = conv.id === activeConvId;
-    const statusClass = conv.status || 'bot';
-
-    return `
-      <div class="conv-item ${isActive ? 'active' : ''}" onclick="openConversation('${conv.id}')">
-        <div class="conv-avatar">${initials}</div>
-        <div class="conv-info">
-          <div class="conv-top">
-            <div class="conv-name">${conv.channel_identifier || 'Unknown'}</div>
-            <div class="conv-time">${time}</div>
-          </div>
-          <div class="conv-preview">
-            <span class="status-dot ${statusClass}"></span>
-            ${escapeHtml(conv.last_message || 'No messages')}
-          </div>
+    const statusCl = conv.status || 'open';
+    return `<div class="conv-item ${isActive ? 'active' : ''}" onclick="openConversation('${conv.id}')">
+      <div class="conv-avatar">${initials}</div>
+      <div class="conv-info">
+        <div class="conv-top">
+          <div class="conv-name">${escapeHtml(name)}</div>
+          <div class="conv-time">${time}</div>
         </div>
-        ${conv.status === 'escalated' || conv.status === 'missed' ? '<div class="unread-dot"></div>' : ''}
+        <div class="conv-preview">
+          <span class="status-dot ${statusCl}"></span>
+          ${escapeHtml(conv.last_message || 'No messages')}
+        </div>
       </div>
-    `;
+      ${conv.unread_count > 0 ? '<div class="unread-dot"></div>' : ''}
+    </div>`;
   }).join('');
 }
 
 // ── Open conversation ──
 async function openConversation(id) {
   activeConvId = id;
-  activeConv = conversations.find(c => c.id === id);
+  activeConv   = conversations.find(c => c.id === id);
   if (!activeConv) return;
-
-  // Update sidebar highlight
   renderConversations(document.querySelector('.search-input')?.value || '');
-
-  // Show chat header
   const header = document.getElementById('chat-header');
   header.style.display = 'flex';
   document.getElementById('reply-bar').style.display = 'flex';
-
-  const initials = (activeConv.channel_identifier || '?').replace(/\D/g,'').slice(-2) || '??';
-  document.getElementById('ch-avatar').textContent = initials;
-  document.getElementById('ch-name').textContent = activeConv.channel_identifier || 'Unknown';
-  document.getElementById('ch-sub').innerHTML = `<span class="chip ${activeConv.status || 'bot'}">${statusLabel(activeConv.status)}</span> · ${activeConv.message_count || 0} messages`;
-
-  // Load messages
+  const name = activeConv.contact_name || activeConv.phone_number || 'Unknown';
+  document.getElementById('ch-avatar').textContent = name.slice(0,2).toUpperCase();
+  document.getElementById('ch-name').textContent   = name;
+  document.getElementById('ch-sub').innerHTML = `<span class="chip ${activeConv.status||'open'}">${statusLabel(activeConv.status)}</span> · ${activeConv.phone_number || ''}`;
   await loadMessages(id);
-
-  // Update detail panel
   updateDetailPanel(activeConv);
-
-  // Mobile: switch to chat view
-  if (window.innerWidth <= 900) {
-    mobileNav('chat');
-  }
+  clearInterval(msgSyncTimer);
+  msgSyncTimer = setInterval(() => loadMessages(id), 3000);
+  if (window.innerWidth <= 900) mobileNav('chat');
 }
 
+// ── Load messages from wa_messages ──
 async function loadMessages(convId) {
-  const container = document.getElementById('messages');
-  container.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text3);font-size:0.78rem;">Loading…</div>';
-
-  let messages = [];
-
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/conversations?id=eq.${convId}&select=messages`, { headers: HEADERS });
-    if (res.ok) {
-      const data = await res.json();
-      messages = data[0]?.messages || [];
-    }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/wa_messages?conversation_id=eq.${convId}&order=id.asc&limit=300`, { headers: HEADERS });
+    if (!res.ok) return;
+    const raw = await res.json();
+    const messages = raw.map(m => ({
+      role:         m.direction === 'inbound' ? 'user' : 'bot',
+      content:      m.content || '',
+      confidence:   m.confidence_score || 0,
+      message_type: m.message_type || 'text',
+      media_url:    m.media_url || null
+    }));
+    renderMessages(messages);
   } catch(e) {}
-
-  // Use demo data if no messages
-  if (!messages.length) {
-    const conv = conversations.find(c => c.id === convId);
-    messages = generateDemoMessages(conv || {});
-  }
-
-  renderMessages(messages);
 }
 
+// ── Render messages ──
 function renderMessages(messages) {
   const container = document.getElementById('messages');
-
   if (!messages.length) {
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><div class="empty-text">No messages yet</div></div>';
     return;
   }
-
+  const scrolledToBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
   let html = '<div class="date-divider">Today</div>';
-
   messages.forEach(msg => {
-    const role = msg.role || 'user';
-
-    if (role === 'escalated' || role === 'missed') {
-      html += `
-        <div style="text-align:center;padding:0.3rem 0;">
-          <span style="font-size:0.7rem;color:${role === 'escalated' ? 'var(--warn)' : 'var(--danger)'};background:${role === 'escalated' ? 'var(--warn-bg)' : 'var(--danger-bg)'};padding:3px 10px;border-radius:20px;border:1px solid ${role === 'escalated' ? '#3d2a00' : '#3d0808'}">
-            ${msg.content}
-          </span>
-        </div>`;
-      return;
-    }
-
+    const role       = msg.role || 'user';
     const isIncoming = role === 'user';
-    const isBot = role === 'bot';
-    const isAgent = role === 'agent';
-    const rowClass = isIncoming ? 'incoming' : isBot ? 'bot-msg' : 'outgoing';
-    const avatarLabel = isIncoming ? '👤' : isBot ? '⚡' : '👨‍💼';
-
+    const isBot      = role === 'bot';
+    const rowClass   = isIncoming ? 'incoming' : 'bot-msg';
+    const avatar     = isIncoming ? '👤' : '⚡';
     let bubbleContent = '';
     const mtype = msg.message_type || 'text';
-    if (mtype === 'image' && msg.media_url) {
-      bubbleContent = `<img src="${msg.media_url}" style="max-width:220px;max-height:200px;border-radius:8px;display:block;" onerror="this.outerHTML='[Image]'">`;
-    } else if (mtype === 'audio' && msg.media_url) {
-      bubbleContent = `<audio controls style="max-width:220px;"><source src="${msg.media_url}"></audio>`;
-    } else if (mtype === 'video' && msg.media_url) {
-      bubbleContent = `<video controls style="max-width:220px;max-height:160px;border-radius:8px;"><source src="${msg.media_url}"></video>`;
-    } else if (mtype === 'document' && msg.media_url) {
-      bubbleContent = `<a href="${msg.media_url}" target="_blank" style="color:var(--accent);text-decoration:underline;">📎 View document</a>`;
-    } else {
-      bubbleContent = escapeHtml(msg.content || '');
-    }
+    if      (mtype === 'image'    && msg.media_url) bubbleContent = `<img src="${msg.media_url}" style="max-width:220px;border-radius:8px;display:block;" onerror="this.outerHTML='[Image]'">`;
+    else if (mtype === 'audio'    && msg.media_url) bubbleContent = `<audio controls style="max-width:220px"><source src="${msg.media_url}"></audio>`;
+    else if (mtype === 'video'    && msg.media_url) bubbleContent = `<video controls style="max-width:220px;border-radius:8px"><source src="${msg.media_url}"></video>`;
+    else if (mtype === 'document' && msg.media_url) bubbleContent = `<a href="${msg.media_url}" target="_blank" style="color:var(--accent)">📎 View document</a>`;
+    else bubbleContent = escapeHtml(msg.content || '');
 
     let metaHtml = '';
-    if (isBot && msg.confidence !== undefined && msg.confidence > 0) {
-      const pct = Math.round(msg.confidence * 100);
+    if (isBot && msg.confidence > 0) {
+      const pct   = Math.round(msg.confidence * 100);
       const color = pct >= 70 ? 'var(--accent)' : pct >= 50 ? 'var(--warn)' : 'var(--danger)';
-      metaHtml = `
-        <div class="msg-meta">
-          <span class="bot-tag">Bot</span>
-          <span class="conf-bar">
-            <span class="conf-fill" style="width:${pct * 0.5}px;background:${color}"></span>
-            ${pct}% confidence
-          </span>
-        </div>`;
-    } else if (isAgent) {
-      metaHtml = `<div class="msg-meta"><span style="font-size:0.65rem;color:var(--accent)">Agent reply</span></div>`;
+      metaHtml = `<div class="msg-meta"><span class="bot-tag">Bot</span><span class="conf-bar"><span class="conf-fill" style="width:${pct*0.5}px;background:${color}"></span>${pct}% confidence</span></div>`;
     }
-
-    html += `
-      <div class="msg-row ${rowClass}">
-        ${!isIncoming ? '' : `<div class="msg-avatar">${avatarLabel}</div>`}
-        <div>
-          <div class="bubble">${bubbleContent}</div>
-          ${metaHtml}
-        </div>
-        ${isIncoming ? '' : `<div class="msg-avatar">${avatarLabel}</div>`}
-      </div>`;
+    html += `<div class="msg-row ${rowClass}">
+      ${!isIncoming ? '' : `<div class="msg-avatar">${avatar}</div>`}
+      <div><div class="bubble">${bubbleContent}</div>${metaHtml}</div>
+      ${isIncoming ? '' : `<div class="msg-avatar">${avatar}</div>`}
+    </div>`;
   });
-
   container.innerHTML = html;
-  container.scrollTop = container.scrollHeight;
+  if (scrolledToBottom) container.scrollTop = container.scrollHeight;
 }
 
-// ── Detail panel ──
-function updateDetailPanel(conv) {
-  document.getElementById('detail-contact').innerHTML = `
-    <div class="detail-row"><span class="detail-key">Number</span><span class="detail-val">${conv.channel_identifier || '—'}</span></div>
-    <div class="detail-row"><span class="detail-key">Channel</span><span class="detail-val">Messaging</span></div>
-  `;
-
-  const confPct = Math.round((conv.confidence_avg || 0) * 100);
-  const confColor = confPct >= 70 ? 'var(--accent)' : confPct >= 50 ? 'var(--warn)' : 'var(--danger)';
-
-  document.getElementById('detail-conv').innerHTML = `
-    <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="chip ${conv.status || 'bot'}">${statusLabel(conv.status)}</span></span></div>
-    <div class="detail-row"><span class="detail-key">Messages</span><span class="detail-val">${conv.message_count || 0}</span></div>
-    <div class="detail-row"><span class="detail-key">Last update</span><span class="detail-val">${formatTime(conv.updated_at)}</span></div>
-  `;
-
-  document.getElementById('detail-confidence').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-      <div style="flex:1;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;">
-        <div style="width:${confPct}%;height:100%;background:${confColor};border-radius:2px;transition:width 0.4s;"></div>
-      </div>
-      <span style="font-size:0.75rem;font-weight:500;color:${confColor}">${confPct}%</span>
-    </div>
-    <div style="font-size:0.7rem;color:var(--text3);">${confPct >= 70 ? 'High confidence — bot handled well' : confPct >= 50 ? 'Medium — may need review' : 'Low — consider escalating'}</div>
-  `;
-}
-
-// ── Actions ──
+// ── Send reply ──
 async function sendReply() {
   const input = document.getElementById('reply-input');
   const text  = input.value.trim();
   if (!text || !activeConvId) return;
-
   const conv = conversations.find(c => c.id === activeConvId);
-  if (!conv?.phone_number) { showToast('No phone number found'); return; }
+  if (!conv?.phone_number) { showToast('No phone number'); return; }
 
   const btn = document.querySelector('.send-btn');
   if (btn) btn.disabled = true;
@@ -1266,132 +1091,100 @@ async function sendReply() {
   autoResize(input);
 
   try {
-    const waRes = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_NUMBER_ID}/messages`, {
+    const waRes = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${WA_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: conv.phone_number,
-        type: 'text',
-        text: { body: text }
-      })
+      headers: { 'Authorization': `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to: conv.phone_number, type: 'text', text: { body: text } })
     });
-
     if (waRes.ok) {
       await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, {
-        method: 'POST',
-        headers: HEADERS,
-        body: JSON.stringify({
-          conversation_id: activeConvId,
-          direction: 'outbound',
-          content: text,
-          message_type: 'text'
-        })
+        method: 'POST', headers: HEADERS,
+        body: JSON.stringify({ conversation_id: activeConvId, direction: 'outbound', content: text, message_type: 'text' })
       });
       await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?id=eq.${activeConvId}`, {
-        method: 'PATCH',
-        headers: HEADERS,
+        method: 'PATCH', headers: HEADERS,
         body: JSON.stringify({ last_message: text, last_message_at: new Date().toISOString() })
       });
-      showToast('Reply sent ✓');
+      showToast('Sent ✓');
       await loadMessages(activeConvId);
     } else {
       const err = await waRes.json();
-      showToast('Send failed: ' + (err?.error?.message || 'Unknown error'));
+      showToast('Failed: ' + (err?.error?.message || 'Error'));
     }
-  } catch(e) {
-    showToast('Connection error');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
+  } catch(e) { showToast('Connection error'); }
+  finally { if (btn) btn.disabled = false; }
 }
 
+// ── Detail panel ──
+function updateDetailPanel(conv) {
+  document.getElementById('detail-contact').innerHTML = `
+    <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val">${escapeHtml(conv.contact_name||'—')}</span></div>
+    <div class="detail-row"><span class="detail-key">Number</span><span class="detail-val">${escapeHtml(conv.phone_number||'—')}</span></div>
+    <div class="detail-row"><span class="detail-key">Channel</span><span class="detail-val">WhatsApp</span></div>`;
+  document.getElementById('detail-conv').innerHTML = `
+    <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="chip ${conv.status||'open'}">${statusLabel(conv.status)}</span></span></div>
+    <div class="detail-row"><span class="detail-key">Last update</span><span class="detail-val">${formatTime(conv.updated_at)}</span></div>`;
+  document.getElementById('detail-confidence').innerHTML = `<div style="font-size:0.78rem;color:var(--text2);">Check individual messages for confidence scores.</div>`;
+}
+
+// ── Actions ──
 async function markResolved() {
   if (!activeConvId) return;
   await updateConvStatus(activeConvId, 'resolved');
-  showToast('Marked as resolved');
+  showToast('Marked as resolved ✓');
 }
 
 async function escalateConv() {
   if (!activeConvId) return;
   await updateConvStatus(activeConvId, 'escalated');
-  showToast('Escalated to human agent');
+  showToast('Escalated to human agent ⚡');
 }
 
 async function updateConvStatus(id, status) {
   const conv = conversations.find(c => c.id === id);
   if (conv) conv.status = status;
-
   updateStats();
   renderConversations();
-
   if (activeConv) {
     activeConv.status = status;
-    document.getElementById('ch-sub').innerHTML = `<span class="chip ${status}">${statusLabel(status)}</span> · ${activeConv.message_count || 0} messages`;
+    document.getElementById('ch-sub').innerHTML = `<span class="chip ${status}">${statusLabel(status)}</span> · ${activeConv.phone_number||''}`;
     updateDetailPanel(activeConv);
   }
-
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?id=eq.${id}`, {
-      method: 'PATCH',
-      headers: HEADERS,
-      body: JSON.stringify({ status })
+      method: 'PATCH', headers: HEADERS, body: JSON.stringify({ status })
     });
   } catch(e) {}
 }
 
-function muteConv() { showToast('Notifications muted for this conversation'); }
+function muteConv()     { showToast('Notifications muted'); }
 function blockContact() { showToast('Contact blocked'); }
 
-// ── Realtime polling every 3 seconds ──
+// ── Realtime polling ──
 function startRealtime() {
   clearInterval(syncTimer);
-  syncTimer = setInterval(async () => {
-    await loadData();
-    if (activeConvId) await loadMessages(activeConvId);
-  }, 3000);
+  syncTimer = setInterval(loadData, 3000);
 }
 
 // ── Misc ──
-async function refreshData() {
-  showToast('Refreshing…');
-  await loadData();
-  showToast('Updated');
-}
+async function refreshData() { await loadData(); showToast('Updated'); }
 
 function toggleDetail() {
-  const panel = document.getElementById('detail-panel');
-  panel.classList.toggle('open');
+  document.getElementById('detail-panel').classList.toggle('open');
 }
 
 function mobileNav(view) {
   const sidebar = document.getElementById('sidebar');
-  const detail = document.getElementById('detail-panel');
-
-  sidebar.classList.remove('open');
-  detail.classList.remove('open');
-
+  const detail  = document.getElementById('detail-panel');
+  sidebar.classList.remove('open'); detail.classList.remove('open');
   document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
-
-  if (view === 'sidebar') {
-    sidebar.classList.add('open');
-    document.getElementById('nav-inbox').classList.add('active');
-  } else if (view === 'detail') {
-    detail.classList.add('open');
-    document.getElementById('nav-detail').classList.add('active');
-  } else {
-    document.getElementById('nav-chat').classList.add('active');
-  }
+  if (view === 'sidebar') { sidebar.classList.add('open'); document.getElementById('nav-inbox').classList.add('active'); }
+  else if (view === 'detail') { detail.classList.add('open'); document.getElementById('nav-detail').classList.add('active'); }
+  else document.getElementById('nav-chat').classList.add('active');
 }
 
 function handleReplyKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendReply();
-  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }
 }
 
 function autoResize(el) {
@@ -1399,28 +1192,23 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
-function signOut() {
-  sessionStorage.removeItem('sdf_user');
-  window.location.href = 'index.html';
-}
+function signOut() { sessionStorage.removeItem('sdf_user'); window.location.href = 'index.html'; }
 
-function statusLabel(status) {
-  return { bot: 'Bot', escalated: 'Escalated', missed: 'Missed', resolved: 'Resolved', active: 'Active' }[status] || status || 'Bot';
+function statusLabel(s) {
+  return { bot:'Bot', escalated:'Escalated', missed:'Missed', resolved:'Resolved', active:'Active', open:'Open' }[s] || s || 'Open';
 }
 
 function formatTime(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  const now = new Date();
-  const diff = now - d;
-  if (diff < 60000) return 'now';
-  if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
-  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  const d = new Date(iso), now = new Date(), diff = now - d;
+  if (diff < 60000)    return 'now';
+  if (diff < 3600000)  return Math.floor(diff/60000)  + 'm';
+  if (diff < 86400000) return Math.floor(diff/3600000) + 'h';
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
 }
 
 function escapeHtml(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function showToast(msg) {
@@ -1429,6 +1217,11 @@ function showToast(msg) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2500);
 }
+
+// Dummy functions from original template
+function getBusinessId() { return '6f90d5a4-2f4a-49ef-bcbb-77a117f79f90'; }
+function generateDemoData() { return []; }
+function generateDemoMessages() { return []; }
 </script>
 </body>
 </html>
