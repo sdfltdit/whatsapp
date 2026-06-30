@@ -3,10 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SDF Whatsapp Inbox</title>
-<link rel="icon" type="image/png" href="sdf.png">
-<link rel="apple-touch-icon" href="sdf.jpg">
-<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<title>SDF Inbox</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0a0a">
 <style>
@@ -296,7 +293,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   <!-- Sidebar -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <img class="logo-sm" src="sdf.jpg" alt="SDF" onerror="this.style.display='none';document.getElementById('logo-fb').style.display='flex'">
+      <img class="logo-sm" src="https://sdfltd.com/sdf.jpg" alt="SDF" onerror="this.style.display='none';document.getElementById('logo-fb').style.display='flex'">
       <div class="logo-fallback" id="logo-fb" style="display:none;">SDF</div>
       <div>
         <div class="sidebar-title">SDF Inbox</div>
@@ -409,6 +406,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <button class="action-btn warn" onclick="escalateConv()">⚡ Escalate to human</button>
       <button class="action-btn" onclick="muteConv()">🔕 Mute notifications</button>
       <button class="action-btn red" onclick="blockContact()">⊘ Block contact</button>
+    </div>
+    <div class="detail-section">
+      <div class="detail-label">Bot Confidence</div>
+      <div id="detail-confidence-box"><div style="font-size:0.78rem;color:var(--text2);">—</div></div>
     </div>
   </div>
 </div>
@@ -524,7 +525,7 @@ async function loadData() {
     if (lastConvIds.size > 0) {
       for (const c of data) {
         if (!lastConvIds.has(c.id)) {
-          if (notifGranted) new Notification('New message — SDF Inbox', { body: c.last_message || 'New conversation', icon: 'sdf.jpg' });
+          if (notifGranted) new Notification('New message — SDF Inbox', { body: c.last_message || 'New conversation', icon: 'https://sdfltd.com/sdf.jpg' });
           playBeep();
         }
       }
@@ -657,10 +658,14 @@ function renderMessages(messages) {
 
   let html = '<div class="date-divider">Today</div>';
   messages.forEach(msg => {
+    if (msg.message_type === 'system') {
+      html += `<div class="date-divider"><span style="background:var(--warn-bg);color:var(--warn);border:1px solid #3d2a00;border-radius:20px;padding:2px 10px;font-size:0.68rem;">${escapeHtml(msg.content||'')}</span></div>`;
+      return;
+    }
     const isOutgoing = msg.direction === 'outbound';
     const rowClass   = isOutgoing ? 'outgoing' : 'incoming';
     const deletedCl  = msg.is_deleted ? ' deleted' : '';
-    const avatar     = isOutgoing ? '⚡' : '👤';
+    const avatar     = isOutgoing ? (msg.sender_type === 'agent' ? '🧑' : '⚡') : '👤';
 
     let bubbleContent;
     if (msg.is_deleted) {
@@ -684,12 +689,28 @@ function renderMessages(messages) {
       ticksHtml = `<span class="msg-ticks">${tickSvg(msg.status)}</span>`;
     }
 
+    let senderTagHtml = '';
+    if (isOutgoing && !msg.is_deleted) {
+      if (msg.sender_type === 'bot') {
+        if (msg.confidence_score != null) {
+          const pct   = Math.round(msg.confidence_score * 100);
+          const color = pct >= 70 ? 'var(--accent)' : pct >= 50 ? 'var(--warn)' : 'var(--danger)';
+          senderTagHtml = `<div class="msg-meta-row" style="margin-top:3px;gap:6px;"><span class="bot-tag" style="background:var(--accent-bg);color:var(--accent);border:1px solid #0d2e15;border-radius:4px;padding:1px 5px;font-size:0.6rem;font-weight:500;">Bot</span><span style="display:inline-block;width:40px;height:3px;border-radius:2px;background:${color};opacity:0.7;"></span><span>${pct}% confidence</span></div>`;
+        } else {
+          senderTagHtml = `<div class="msg-meta-row" style="margin-top:3px;"><span class="bot-tag" style="background:var(--accent-bg);color:var(--accent);border:1px solid #0d2e15;border-radius:4px;padding:1px 5px;font-size:0.6rem;font-weight:500;">Bot</span></div>`;
+        }
+      } else if (msg.sender_type === 'agent') {
+        senderTagHtml = `<div class="msg-meta-row" style="margin-top:3px;color:var(--accent);">Agent reply</div>`;
+      }
+    }
+
     html += `<div class="msg-row ${rowClass}${deletedCl}" data-msg-id="${msg.id}">
       ${!isOutgoing ? `<div class="msg-avatar">${avatar}</div>` : ''}
       <button class="msg-actions-btn" onclick="openActionSheet('${msg.id}')" title="Options">⋮</button>
       <div class="bubble-wrap">
         <div class="bubble">${replyHtml}${bubbleContent}</div>
         <div class="msg-meta-row"><span class="msg-time">${formatClock(msg.sent_at)}</span>${ticksHtml}</div>
+        ${senderTagHtml}
       </div>
       ${isOutgoing ? `<div class="msg-avatar">${avatar}</div>` : ''}
     </div>`;
@@ -748,14 +769,19 @@ async function sendReply() {
       const waMsgId = result?.messages?.[0]?.id || null;
       const row = {
         conversation_id: activeConvId, direction: 'outbound', content: text, message_type: 'text',
-        wa_message_id: waMsgId, status: 'sent', sent_at: new Date().toISOString()
+        wa_message_id: waMsgId, status: 'sent', is_read: true, sender_type: 'agent', sent_at: new Date().toISOString()
       };
       if (replyCtx) { row.reply_to_id = replyCtx.id; row.reply_preview = replyCtx.content; row.reply_sender = replyCtx.sender_label; }
-      await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, { method: 'POST', headers: HEADERS, body: JSON.stringify(row) });
+      const insRes = await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, { method: 'POST', headers: HEADERS, body: JSON.stringify(row) });
+      if (!insRes.ok) {
+        const errBody = await insRes.text();
+        console.error('DB insert failed:', errBody);
+        showToast('Sent to WhatsApp but DB save failed — check console');
+      }
       await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?id=eq.${activeConvId}`, {
         method: 'PATCH', headers: HEADERS, body: JSON.stringify({ last_message: text, last_message_at: new Date().toISOString() })
       });
-      showToast('Sent ✓');
+      if (insRes.ok) showToast('Sent ✓');
       await loadMessages(activeConvId);
     } else {
       const err = await waRes.json();
@@ -865,7 +891,7 @@ async function confirmForward() {
       const result = await waRes.json();
       await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, {
         method: 'POST', headers: HEADERS,
-        body: JSON.stringify({ conversation_id: target.id, direction: 'outbound', content: msg.content || '', message_type: msg.message_type, media_url: msg.media_url || null, wa_message_id: result?.messages?.[0]?.id || null, status: 'sent', sent_at: new Date().toISOString(), is_forwarded: true })
+        body: JSON.stringify({ conversation_id: target.id, direction: 'outbound', content: msg.content || '', message_type: msg.message_type, media_url: msg.media_url || null, wa_message_id: result?.messages?.[0]?.id || null, status: 'sent', sender_type: 'agent', is_forwarded: true, sent_at: new Date().toISOString() })
       });
       showToast('Forwarded ✓');
       if (target.id === activeConvId) await loadMessages(activeConvId);
@@ -937,7 +963,7 @@ async function uploadAndSendMedia(file, kind, caption) {
       const result = await waRes.json();
       await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, {
         method: 'POST', headers: HEADERS,
-        body: JSON.stringify({ conversation_id: activeConvId, direction: 'outbound', content: caption || file.name, message_type: msgType, wa_message_id: result?.messages?.[0]?.id || null, status: 'sent', sent_at: new Date().toISOString() })
+        body: JSON.stringify({ conversation_id: activeConvId, direction: 'outbound', content: caption || file.name, message_type: msgType, wa_message_id: result?.messages?.[0]?.id || null, status: 'sent', sender_type: 'agent', sent_at: new Date().toISOString() })
       });
       await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?id=eq.${activeConvId}`, {
         method: 'PATCH', headers: HEADERS, body: JSON.stringify({ last_message: `[${msgType}] ${caption||file.name}`, last_message_at: new Date().toISOString() })
@@ -1046,18 +1072,77 @@ function focusSearchHit() {
 }
 
 // ───────────────────────── Detail panel / actions ─────────────────────────
+function detectCountry(phone) {
+  if (!phone) return '—';
+  const p = phone.replace(/[^0-9+]/g, '');
+  const codes = [
+    ['880','Bangladesh'], ['1','USA/Canada'], ['44','UK'], ['49','Germany'], ['33','France'],
+    ['39','Italy'], ['34','Spain'], ['31','Netherlands'], ['61','Australia'], ['64','New Zealand'],
+    ['91','India'], ['92','Pakistan'], ['86','China'], ['81','Japan'], ['82','South Korea'],
+    ['971','UAE'], ['966','Saudi Arabia'], ['60','Malaysia'], ['65','Singapore'], ['62','Indonesia'],
+    ['90','Turkey'], ['20','Egypt'], ['27','South Africa'], ['7','Russia'], ['55','Brazil'],
+    ['52','Mexico'], ['234','Nigeria'], ['254','Kenya'], ['46','Sweden'], ['41','Switzerland']
+  ];
+  const digits = p.replace('+','');
+  const sorted = [...codes].sort((a,b) => b[0].length - a[0].length);
+  for (const [code, name] of sorted) if (digits.startsWith(code)) return name;
+  return 'Unknown';
+}
+
 function updateDetailPanel(conv) {
   document.getElementById('detail-contact').innerHTML = `
     <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val">${escapeHtml(conv.contact_name||'—')}</span></div>
     <div class="detail-row"><span class="detail-key">Number</span><span class="detail-val">${escapeHtml(conv.phone_number||'—')}</span></div>
+    <div class="detail-row"><span class="detail-key">Country</span><span class="detail-val">${escapeHtml(detectCountry(conv.phone_number))}</span></div>
     <div class="detail-row"><span class="detail-key">Channel</span><span class="detail-val">WhatsApp</span></div>`;
+  const realMsgs = currentMessages.filter(m => m.message_type !== 'system');
   document.getElementById('detail-conv').innerHTML = `
     <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="chip ${conv.status||'open'}">${statusLabel(conv.status)}</span></span></div>
+    <div class="detail-row"><span class="detail-key">Messages</span><span class="detail-val">${realMsgs.length}</span></div>
     <div class="detail-row"><span class="detail-key">Last update</span><span class="detail-val">${formatTime(conv.updated_at)}</span></div>`;
+
+  const botScores = currentMessages.filter(m => m.sender_type === 'bot' && m.confidence_score != null).map(m => m.confidence_score);
+  const confBox = document.getElementById('detail-confidence-box');
+  if (confBox) {
+    if (botScores.length) {
+      const avg = botScores.reduce((a,b)=>a+b,0) / botScores.length;
+      const pct = Math.round(avg * 100);
+      const color = pct >= 70 ? 'var(--accent)' : pct >= 50 ? 'var(--warn)' : 'var(--danger)';
+      const note  = pct >= 70 ? 'High confidence — bot handled well' : pct >= 50 ? 'Medium confidence' : 'Low — consider escalating';
+      confBox.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-right:8px;"><div style="width:${pct}%;height:100%;background:${color};"></div></div>
+          <span style="font-size:0.78rem;color:${color};font-weight:600;">${pct}%</span>
+        </div>
+        <div style="font-size:0.7rem;color:var(--text3);">${note}</div>`;
+    } else {
+      confBox.innerHTML = `<div style="font-size:0.78rem;color:var(--text2);">No bot replies yet in this conversation.</div>`;
+    }
+  }
 }
 
-async function markResolved() { if (!activeConvId) return; await updateConvStatus(activeConvId, 'resolved'); showToast('Marked as resolved ✓'); }
-async function escalateConv() { if (!activeConvId) return; await updateConvStatus(activeConvId, 'escalated'); showToast('Escalated to human agent ⚡'); }
+async function markResolved() {
+  if (!activeConvId) return;
+  await updateConvStatus(activeConvId, 'resolved');
+  await insertSystemMessage(activeConvId, 'Conversation marked as resolved.');
+  showToast('Marked as resolved ✓');
+}
+async function escalateConv() {
+  if (!activeConvId) return;
+  await updateConvStatus(activeConvId, 'escalated');
+  await insertSystemMessage(activeConvId, 'Conversation escalated to human agent.');
+  showToast('Escalated to human agent ⚡');
+}
+
+async function insertSystemMessage(convId, text) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ conversation_id: convId, direction: 'outbound', content: text, message_type: 'system', sender_type: 'system', status: 'sent', sent_at: new Date().toISOString() })
+    });
+    if (convId === activeConvId) await loadMessages(convId);
+  } catch(e) {}
+}
 
 async function updateConvStatus(id, status) {
   const conv = conversations.find(c => c.id === id);
