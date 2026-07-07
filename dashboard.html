@@ -675,7 +675,19 @@ function renderMessages(messages) {
       if      (mtype === 'image'    && msg.media_url) bubbleContent = `<img src="${msg.media_url}" style="max-width:220px;border-radius:8px;display:block;" onerror="this.outerHTML='[Image]'">` + (msg.content ? `<div style="margin-top:4px">${escapeHtml(msg.content)}</div>` : '');
       else if (mtype === 'audio'    && msg.media_url) bubbleContent = `<audio controls style="max-width:220px"><source src="${msg.media_url}"></audio>`;
       else if (mtype === 'video'    && msg.media_url) bubbleContent = `<video controls style="max-width:220px;border-radius:8px"><source src="${msg.media_url}"></video>` + (msg.content ? `<div style="margin-top:4px">${escapeHtml(msg.content)}</div>` : '');
-      else if (mtype === 'document' && msg.media_url) bubbleContent = `<a href="${msg.media_url}" target="_blank" style="color:var(--accent)">📎 ${escapeHtml(msg.content || 'View document')}</a>`;
+      else if (mtype === 'document') {
+        if (msg.media_url) {
+          const fname = msg.content || 'document';
+          const ext = fname.split('.').pop()?.toLowerCase() || 'file';
+          const icon = ext === 'pdf' ? '📄' : ext.includes('doc') ? '📝' : ext.includes('xls') ? '📊' : '📎';
+          bubbleContent = `<a href="${msg.media_url}" target="_blank" style="display:flex;align-items:center;gap:8px;color:var(--accent);text-decoration:none;padding:4px 0;">${icon} <span style="text-decoration:underline;">${escapeHtml(fname)}</span></a>`;
+        } else {
+          const fname = msg.content || 'document';
+          const ext = fname.split('.').pop()?.toLowerCase() || '';
+          const icon = ext === 'pdf' ? '📄' : ext.includes('doc') ? '📝' : ext.includes('xls') ? '📊' : '📎';
+          bubbleContent = `<span style="display:flex;align-items:center;gap:8px;color:var(--text2);">${icon} ${escapeHtml(fname)}</span>`;
+        }
+      }
       else bubbleContent = escapeHtml(msg.content || '');
     }
 
