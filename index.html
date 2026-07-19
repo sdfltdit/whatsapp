@@ -248,11 +248,15 @@
 </script>
 
 <script>
-const SUPABASE_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4bHdsZXZibXl5aHVvb3VsZnphIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTk5ODc5MiwiZXhwIjoyMDk3NTc0NzkyfQ.o4CrI2hAtXZXgO9EVkWdv4NY9UPvI4jhA7f0ugQ9LaA';
+// SECURITY FIX: this used to call Supabase directly with the SERVICE_ROLE key (full DB
+// access) hardcoded here in plaintext, and had a fallback that logged anyone in with the
+// password "password" if the verify-password function wasn't reachable. Both are removed.
+// All of that now lives server-side in the dashboard-api Edge Function — this page only ever
+// talks to that one endpoint, and only ever stores the short-lived signed token it returns.
+const DASHBOARD_API_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co/functions/v1/dashboard-api';
 
 // Check if already logged in
-if (sessionStorage.getItem('sdf_user')) {
+if (sessionStorage.getItem('sdf_session_token')) {
   window.location.href = 'dashboard.html';
 }
 
@@ -280,51 +284,22 @@ async function handleLogin() {
   btnText.textContent = 'Signing in…';
 
   try {
-    // Fetch user by email
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/staff_users?email=eq.${encodeURIComponent(email)}&status=eq.active&select=id,email,full_name,role,password_hash,status`, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json'
-      }
+    const res = await fetch(`${DASHBOARD_API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
     });
+    const data = await res.json();
 
-    const users = await res.json();
-
-    if (!users || users.length === 0) {
-      showError('No active account found with this email.');
+    if (!res.ok || !data.token) {
+      showError(data.error || 'Incorrect email or password.');
       return;
     }
 
-    const user = users[0];
-
-    // Verify password using bcrypt via edge function
-    // For now: simple hash check — replace with Edge Function later
-    const isValid = await verifyPassword(password, user.password_hash);
-
-    if (!isValid) {
-      showError('Incorrect password. Please try again.');
-      return;
-    }
-
-    // Update last login
-    await fetch(`${SUPABASE_URL}/rest/v1/staff_users?id=eq.${user.id}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ last_login_at: new Date().toISOString() })
-    });
-
-    // Save session
-    sessionStorage.setItem('sdf_user', JSON.stringify({
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      role: user.role
-    }));
+    // Only the signed session token + basic display info is stored — never a password,
+    // never a raw DB row, and the token is useless to forge without the server's secret.
+    sessionStorage.setItem('sdf_session_token', data.token);
+    sessionStorage.setItem('sdf_user', JSON.stringify(data.user));
 
     window.location.href = 'dashboard.html';
 
@@ -336,29 +311,6 @@ async function handleLogin() {
     spinner.style.display = 'none';
     btnText.textContent = 'Sign in';
   }
-}
-
-// bcrypt verification using edge function or fallback
-async function verifyPassword(password, hash) {
-  // Call Supabase Edge Function for bcrypt verify
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-password`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ password, hash })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data.valid;
-    }
-  } catch(e) {}
-
-  // Fallback: if edge function not deployed, use test password
-  // REMOVE THIS IN PRODUCTION
-  return password === 'password';
 }
 
 function showError(msg) {

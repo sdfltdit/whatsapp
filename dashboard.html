@@ -461,11 +461,32 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 </div>
 
 <script>
-const SUPABASE_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4bHdsZXZibXl5aHVvb3VsZnphIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTk5ODc5MiwiZXhwIjoyMDk3NTc0NzkyfQ.o4CrI2hAtXZXgO9EVkWdv4NY9UPvI4jhA7f0ugQ9LaA';
-const WA_PHONE_ID  = '1171658772697634';
-const WA_TOKEN     = 'EAAOtTQ4BUhkBR1FNLiZAUM0s6CCff27hwpE1hmzdQf1HQSBeOgNtVrZBxMM2D4274cDkRmIZCgsiy4kZAWfULXvRFzPlIkv13XAfEZA8g5KnZCr5TSpNxkR33c8yIEITNSshvxVllelSDytEa6eDRHgz6j3H657RCNBbCIWzBcnDH29eZAaZAvj9RActBAZDZD';
-const HEADERS      = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+// SECURITY FIX: this page used to hold the Supabase SERVICE_ROLE key (full DB access) and a
+// live WhatsApp Graph API access token directly in this file, in plaintext — both were
+// exposed publicly. Neither secret lives here anymore. Every data operation now goes through
+// the dashboard-api Edge Function, authenticated with the short-lived signed session token
+// obtained at login. If that function ever returns 401 (expired/invalid session), we bounce
+// back to the login page automatically.
+const DASHBOARD_API_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co/functions/v1/dashboard-api';
+
+function getSessionToken() { return sessionStorage.getItem('sdf_session_token'); }
+
+async function authFetch(path, options = {}) {
+  const token = getSessionToken();
+  if (!token) { window.location.href = 'index.html'; throw new Error('No session'); }
+  const headers = { ...(options.headers || {}), 'Authorization': `Bearer ${token}` };
+  // Only set JSON content-type when we're not sending FormData (media uploads use FormData,
+  // which needs the browser to set its own multipart boundary header).
+  if (!(options.body instanceof FormData) && options.body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${DASHBOARD_API_URL}${path}`, { ...options, headers });
+  if (res.status === 401) {
+    sessionStorage.removeItem('sdf_session_token');
+    sessionStorage.removeItem('sdf_user');
+    window.location.href = 'index.html';
+    throw new Error('Session expired');
+  }
+  return res;
+}
 
 let currentUser = null;
 let conversations = [];
@@ -496,7 +517,8 @@ let chatSearchIdx  = -1;
 
 window.addEventListener('load', async () => {
   const stored = sessionStorage.getItem('sdf_user');
-  if (!stored) { window.location.href = 'index.html'; return; }
+  const token  = sessionStorage.getItem('sdf_session_token');
+  if (!stored || !token) { window.location.href = 'index.html'; return; }
   currentUser = JSON.parse(stored);
   const initials = (currentUser.full_name || currentUser.email).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
@@ -516,7 +538,7 @@ window.addEventListener('load', async () => {
 // ───────────────────────── Conversations ─────────────────────────
 async function loadData() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?order=last_message_at.desc.nullslast,created_at.desc&limit=100`, { headers: HEADERS });
+    const res = await authFetch('/conversations', { method: 'GET' });
     if (!res.ok) return;
     const data = await res.json();
     if (!Array.isArray(data)) return;
@@ -640,7 +662,7 @@ async function openConversation(id) {
 // ───────────────────────── Messages ─────────────────────────
 async function loadMessages(convId) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/wa_messages?conversation_id=eq.${convId}&order=sent_at.asc&limit=300`, { headers: HEADERS });
+    const res = await authFetch(`/messages?conversation_id=${encodeURIComponent(convId)}`, { method: 'GET' });
     if (!res.ok) return;
     const raw = await res.json();
     currentMessages = raw;
@@ -741,14 +763,7 @@ function tickSvg(status) {
 // ───────────────────────── Mark inbound as read (blue tick on customer's side) ─────────────────────────
 async function markIncomingAsRead(convId) {
   try {
-    const unread = currentMessages.filter(m => m.direction === 'inbound' && m.status === 'received' && m.wa_message_id);
-    for (const m of unread) {
-      await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: m.wa_message_id })
-      }).catch(()=>{});
-    }
+    await authFetch('/mark-read', { method: 'POST', body: JSON.stringify({ conversation_id: convId }) });
   } catch(e) {}
 }
 
@@ -768,36 +783,16 @@ async function sendReply() {
   cancelReply();
 
   try {
-    const payload = { messaging_product: 'whatsapp', to: conv.phone_number, type: 'text', text: { body: text } };
-    if (replyCtx?.wa_message_id) payload.context = { message_id: replyCtx.wa_message_id };
-
-    const waRes = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
+    const res = await authFetch('/send-text', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ conversation_id: activeConvId, text, reply_to: replyCtx || undefined })
     });
-    if (waRes.ok) {
-      const result = await waRes.json();
-      const waMsgId = result?.messages?.[0]?.id || null;
-      const row = {
-        conversation_id: activeConvId, direction: 'outbound', content: text, message_type: 'text',
-        wa_message_id: waMsgId, status: 'sent', is_read: true, sender_type: 'agent', sent_at: new Date().toISOString()
-      };
-      if (replyCtx) { row.reply_to_id = replyCtx.id; row.reply_preview = replyCtx.content; row.reply_sender = replyCtx.sender_label; }
-      const insRes = await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, { method: 'POST', headers: HEADERS, body: JSON.stringify(row) });
-      if (!insRes.ok) {
-        const errBody = await insRes.text();
-        console.error('DB insert failed:', errBody);
-        showToast('Sent to WhatsApp but DB save failed — check console');
-      }
-      await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?id=eq.${activeConvId}`, {
-        method: 'PATCH', headers: HEADERS, body: JSON.stringify({ last_message: text, last_message_at: new Date().toISOString() })
-      });
-      if (insRes.ok) showToast('Sent ✓');
+    if (res.ok) {
+      showToast('Sent ✓');
       await loadMessages(activeConvId);
     } else {
-      const err = await waRes.json();
-      showToast('Failed: ' + (err?.error?.message || 'Error'));
+      const err = await res.json().catch(() => ({}));
+      showToast('Failed: ' + (err?.error || 'Error'));
     }
   } catch(e) { showToast('Connection error'); }
   finally { if (btn) btn.disabled = false; }
@@ -844,7 +839,7 @@ async function actionDelete() {
   const id = actionTargetMsg.id;
   closeActionSheet();
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/wa_messages?id=eq.${id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ is_deleted: true }) });
+    await authFetch('/message-delete', { method: 'PATCH', body: JSON.stringify({ message_id: id }) });
     showToast('Message deleted');
     await loadMessages(activeConvId);
   } catch(e) { showToast('Delete failed'); }
@@ -886,25 +881,11 @@ async function confirmForward() {
   const msg = actionTargetMsg;
   closeForwardModal();
   try {
-    let waRes;
-    if (msg.message_type === 'text' || !msg.media_url) {
-      waRes = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messaging_product: 'whatsapp', to: target.phone_number, type: 'text', text: { body: msg.content || '' } })
-      });
-    } else {
-      const body = { messaging_product: 'whatsapp', to: target.phone_number, type: msg.message_type };
-      body[msg.message_type] = { link: msg.media_url };
-      waRes = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-      });
-    }
-    if (waRes.ok) {
-      const result = await waRes.json();
-      await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, {
-        method: 'POST', headers: HEADERS,
-        body: JSON.stringify({ conversation_id: target.id, direction: 'outbound', content: msg.content || '', message_type: msg.message_type, media_url: msg.media_url || null, wa_message_id: result?.messages?.[0]?.id || null, status: 'sent', sender_type: 'agent', is_forwarded: true, sent_at: new Date().toISOString() })
-      });
+    const res = await authFetch('/forward', {
+      method: 'POST',
+      body: JSON.stringify({ message_id: msg.id, target_conversation_id: target.id })
+    });
+    if (res.ok) {
       showToast('Forwarded ✓');
       if (target.id === activeConvId) await loadMessages(activeConvId);
     } else { showToast('Forward failed'); }
@@ -954,35 +935,18 @@ async function uploadAndSendMedia(file, kind, caption) {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('messaging_product', 'whatsapp');
-    formData.append('type', file.type);
+    formData.append('conversation_id', activeConvId);
+    formData.append('kind', kind);
+    if (caption) formData.append('caption', caption);
 
-    const uploadRes = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/media`, {
-      method: 'POST', headers: { 'Authorization': `Bearer ${WA_TOKEN}` }, body: formData
-    });
-    if (!uploadRes.ok) { showToast('Upload failed'); return; }
-    const { id: mediaId } = await uploadRes.json();
-
-    const msgType = kind;
-    const msgBody = { messaging_product: 'whatsapp', to: conv.phone_number, type: msgType };
-    if (msgType === 'document') msgBody[msgType] = { id: mediaId, filename: file.name, ...(caption ? { caption } : {}) };
-    else msgBody[msgType] = { id: mediaId, ...(caption ? { caption } : {}) };
-
-    const waRes = await fetch(`https://graph.facebook.com/v19.0/${WA_PHONE_ID}/messages`, {
-      method: 'POST', headers: { 'Authorization': `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(msgBody)
-    });
-    if (waRes.ok) {
-      const result = await waRes.json();
-      await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, {
-        method: 'POST', headers: HEADERS,
-        body: JSON.stringify({ conversation_id: activeConvId, direction: 'outbound', content: caption || file.name, message_type: msgType, wa_message_id: result?.messages?.[0]?.id || null, status: 'sent', sender_type: 'agent', sent_at: new Date().toISOString() })
-      });
-      await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?id=eq.${activeConvId}`, {
-        method: 'PATCH', headers: HEADERS, body: JSON.stringify({ last_message: `[${msgType}] ${caption||file.name}`, last_message_at: new Date().toISOString() })
-      });
+    const res = await authFetch('/send-media', { method: 'POST', body: formData });
+    if (res.ok) {
       showToast('Sent ✓');
       await loadMessages(activeConvId);
-    } else { showToast('Send failed'); }
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast('Send failed: ' + (err?.error || 'Error'));
+    }
   } catch(e) { showToast('Error: ' + e.message); }
 }
 
@@ -1148,10 +1112,7 @@ async function escalateConv() {
 
 async function insertSystemMessage(convId, text) {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/wa_messages`, {
-      method: 'POST', headers: HEADERS,
-      body: JSON.stringify({ conversation_id: convId, direction: 'outbound', content: text, message_type: 'system', sender_type: 'system', status: 'sent', sent_at: new Date().toISOString() })
-    });
+    await authFetch('/system-message', { method: 'POST', body: JSON.stringify({ conversation_id: convId, text }) });
     if (convId === activeConvId) await loadMessages(convId);
   } catch(e) {}
 }
@@ -1166,11 +1127,24 @@ async function updateConvStatus(id, status) {
     document.getElementById('ch-sub').innerHTML = `<span class="chip ${status}">${statusLabel(status)}</span> · ${activeConv.phone_number||''}`;
     updateDetailPanel(activeConv);
   }
-  try { await fetch(`${SUPABASE_URL}/rest/v1/wa_conversations?id=eq.${id}`, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ status }) }); } catch(e) {}
+  try { await authFetch('/conversation-status', { method: 'PATCH', body: JSON.stringify({ conversation_id: id, status }) }); } catch(e) {}
 }
 
-function muteConv()     { showToast('Notifications muted'); }
-function blockContact() { showToast('Contact blocked'); }
+async function muteConv() {
+  if (!activeConvId) return;
+  try {
+    await authFetch('/conversation-mute', { method: 'PATCH', body: JSON.stringify({ conversation_id: activeConvId, muted: true }) });
+    showToast('Notifications muted');
+  } catch(e) { showToast('Failed to mute'); }
+}
+
+async function blockContact() {
+  if (!activeConvId) return;
+  if (!confirm('Block this contact? They will no longer receive any automated or agent replies until you unblock them.')) return;
+  await updateConvStatus(activeConvId, 'blocked');
+  await insertSystemMessage(activeConvId, 'Contact blocked — no replies will be sent until unblocked.');
+  showToast('Contact blocked ✓');
+}
 
 // ───────────────────────── Realtime / misc ─────────────────────────
 function startRealtime() { clearInterval(syncTimer); syncTimer = setInterval(loadData, 3000); }
@@ -1187,7 +1161,7 @@ function mobileNav(view) {
   else document.getElementById('nav-chat').classList.add('active');
 }
 
-function signOut() { sessionStorage.removeItem('sdf_user'); window.location.href = 'index.html'; }
+function signOut() { sessionStorage.removeItem('sdf_user'); sessionStorage.removeItem('sdf_session_token'); window.location.href = 'index.html'; }
 
 function statusLabel(s) { return { bot:'Bot', escalated:'Escalated', missed:'Missed', resolved:'Resolved', active:'Active', open:'Open' }[s] || s || 'Open'; }
 
