@@ -462,6 +462,19 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   </div>
 </div>
 
+<div class="overlay" id="file-viewer-overlay" onclick="if(event.target===this)closeFileViewer()" style="align-items:center;justify-content:center;">
+  <div id="file-viewer-box" style="background:var(--surface1,#141414);border-radius:12px;max-width:92vw;max-height:92vh;width:min(900px,92vw);display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border,#2a2a2a);">
+      <div id="file-viewer-name" style="font-size:0.85rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;margin-right:12px;"></div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <a id="file-viewer-download" href="#" download style="font-size:0.8rem;color:var(--accent);text-decoration:none;padding:6px 10px;border:1px solid var(--border,#2a2a2a);border-radius:6px;">⬇ Download</a>
+        <button onclick="closeFileViewer()" style="font-size:0.8rem;background:none;border:1px solid var(--border,#2a2a2a);border-radius:6px;color:var(--text2);padding:6px 10px;cursor:pointer;">✕ Close</button>
+      </div>
+    </div>
+    <div id="file-viewer-content" style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;background:#000;min-height:200px;"></div>
+  </div>
+</div>
+
 <script>
 // SECURITY FIX: this page used to hold the Supabase SERVICE_ROLE key (full DB access) and a
 // live WhatsApp Graph API access token directly in this file, in plaintext — both were
@@ -696,15 +709,15 @@ function renderMessages(messages) {
       bubbleContent = '🚫 This message was deleted';
     } else {
       const mtype = msg.message_type || 'text';
-      if      (mtype === 'image'    && msg.media_url) bubbleContent = `<img src="${msg.media_url}" style="max-width:220px;border-radius:8px;display:block;" onerror="this.outerHTML='[Image]'">` + (msg.content ? `<div style="margin-top:4px">${escapeHtml(msg.content)}</div>` : '');
+      if      (mtype === 'image'    && msg.media_url) bubbleContent = `<img src="${msg.media_url}" style="max-width:220px;border-radius:8px;display:block;cursor:zoom-in;" onclick="openFileViewer('${jsEsc(msg.media_url)}', '${jsEsc(msg.content || 'image.jpg')}')" onerror="this.outerHTML='[Image]'">` + (msg.content ? `<div style="margin-top:4px">${escapeHtml(msg.content)}</div>` : '');
       else if (mtype === 'audio'    && msg.media_url) bubbleContent = `<audio controls style="max-width:220px"><source src="${msg.media_url}"></audio>`;
-      else if (mtype === 'video'    && msg.media_url) bubbleContent = `<video controls style="max-width:220px;border-radius:8px"><source src="${msg.media_url}"></video>` + (msg.content ? `<div style="margin-top:4px">${escapeHtml(msg.content)}</div>` : '');
+      else if (mtype === 'video'    && msg.media_url) bubbleContent = `<video controls style="max-width:220px;border-radius:8px;cursor:zoom-in;" onclick="if(this.paused){openFileViewer('${jsEsc(msg.media_url)}', '${jsEsc(msg.content || 'video.mp4')}')}"><source src="${msg.media_url}"></video>` + (msg.content ? `<div style="margin-top:4px">${escapeHtml(msg.content)}</div>` : '');
       else if (mtype === 'document') {
         if (msg.media_url) {
           const fname = msg.content || 'document';
           const ext = fname.split('.').pop()?.toLowerCase() || 'file';
-          const icon = ext === 'pdf' ? '📄' : ext.includes('doc') ? '📝' : ext.includes('xls') ? '📊' : '📎';
-          bubbleContent = `<a href="${msg.media_url}" target="_blank" style="display:flex;align-items:center;gap:8px;color:var(--accent);text-decoration:none;padding:4px 0;">${icon} <span style="text-decoration:underline;">${escapeHtml(fname)}</span></a>`;
+          const icon = ext === 'pdf' ? '📄' : ext.includes('doc') ? '📝' : ext.includes('xls') ? '📊' : ext.includes('ppt') ? '📽️' : IMAGE_EXTS.includes(ext) ? '🖼️' : '📎';
+          bubbleContent = `<a href="javascript:void(0)" onclick="openFileViewer('${jsEsc(msg.media_url)}', '${jsEsc(fname)}')" style="display:flex;align-items:center;gap:8px;color:var(--accent);text-decoration:none;padding:4px 0;cursor:pointer;">${icon} <span style="text-decoration:underline;">${escapeHtml(fname)}</span></a>`;
         } else {
           const fname = msg.content || 'document';
           const ext = fname.split('.').pop()?.toLowerCase() || '';
@@ -860,6 +873,53 @@ function openForwardModal() {
   document.getElementById('fwd-modal-overlay').classList.add('show');
 }
 function closeForwardModal() { document.getElementById('fwd-modal-overlay').classList.remove('show'); }
+
+// File viewer: click any image/document bubble to open it large in-app (zoom for images,
+// in-browser preview for PDFs/Office docs) — never auto-downloads. A separate Download button
+// is always available for when the file is actually needed locally.
+const IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','bmp','svg'];
+const OFFICE_EXTS = ['doc','docx','xls','xlsx','ppt','pptx'];
+
+function openFileViewer(url, filename) {
+  if (!url) return;
+  const name = filename || url.split('/').pop().split('?')[0] || 'file';
+  const ext = (name.split('.').pop() || '').toLowerCase();
+
+  document.getElementById('file-viewer-name').textContent = name;
+  const dl = document.getElementById('file-viewer-download');
+  dl.href = url;
+  dl.setAttribute('download', name);
+
+  const content = document.getElementById('file-viewer-content');
+  if (IMAGE_EXTS.includes(ext)) {
+    content.innerHTML = `<img src="${url}" style="max-width:100%;max-height:88vh;object-fit:contain;display:block;">`;
+  } else if (ext === 'pdf') {
+    // Browsers render PDFs natively inside an iframe — real in-app zoom/scroll, no download needed
+    content.innerHTML = `<iframe src="${url}" style="width:100%;height:80vh;border:0;background:#fff;"></iframe>`;
+  } else if (OFFICE_EXTS.includes(ext)) {
+    // No native browser preview for Word/Excel/PowerPoint — use Google's public viewer, which
+    // works for any URL that's already publicly reachable (our Supabase storage URLs are).
+    const viewerUrl = 'https://docs.google.com/gviewer?embedded=true&url=' + encodeURIComponent(url);
+    content.innerHTML = `<iframe src="${viewerUrl}" style="width:100%;height:80vh;border:0;background:#fff;"></iframe>`;
+  } else if (ext === 'mp4' || ext === '3gp' || ext === 'mov') {
+    content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:88vh;"></video>`;
+  } else if (ext === 'mp3' || ext === 'ogg' || ext === 'oga' || ext === 'aac' || ext === 'm4a' || ext === 'amr') {
+    content.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text2);"><div style="font-size:2.5rem;margin-bottom:12px;">🎵</div><audio src="${url}" controls autoplay></audio></div>`;
+  } else {
+    content.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text2);"><div style="font-size:2.5rem;margin-bottom:12px;">📎</div>Preview not available for this file type.<br>Use Download to save it.</div>`;
+  }
+
+  document.getElementById('file-viewer-overlay').classList.add('show');
+}
+
+function closeFileViewer() {
+  document.getElementById('file-viewer-overlay').classList.remove('show');
+  document.getElementById('file-viewer-content').innerHTML = ''; // stop video/audio playback, free memory
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeFileViewer();
+});
 
 let fwdSelectedId = null;
 function renderForwardList(q) {
@@ -1241,6 +1301,13 @@ function formatClock(iso) {
 
 function escapeHtml(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Safely embed a string as a single-quoted JS string literal inside an inline onclick="..."
+// HTML attribute (which itself uses double quotes) — JSON.stringify() would break this since
+// it produces double-quoted strings that prematurely close the HTML attribute.
+function jsEsc(str) {
+  return String(str||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/"/g,'&quot;');
 }
 
 function showToast(msg) {
