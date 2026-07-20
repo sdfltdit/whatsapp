@@ -404,8 +404,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <div class="detail-label">Actions</div>
       <button class="action-btn green" onclick="markResolved()">✓ Mark as resolved</button>
       <button class="action-btn warn" onclick="escalateConv()">⚡ Escalate to human</button>
+      <button class="action-btn" id="bot-pause-btn" onclick="toggleBotPause()">🔀 Push to human</button>
       <button class="action-btn" onclick="muteConv()">🔕 Mute notifications</button>
       <button class="action-btn red" onclick="blockContact()">⊘ Block contact</button>
+      <button class="action-btn red" onclick="deleteConversation()">🗑️ Delete chat &amp; history</button>
     </div>
     <div class="detail-section">
       <div class="detail-label">Bot Confidence</div>
@@ -1078,8 +1080,7 @@ function updateDetailPanel(conv) {
     <div class="detail-row"><span class="detail-key">Last update</span><span class="detail-val">${formatTime(conv.updated_at)}</span></div>`;
 
   const botScores = currentMessages.filter(m => m.sender_type === 'bot' && m.confidence_score != null).map(m => m.confidence_score);
-  const confBox = document.getElementById('detail-confidence-box');
-  if (confBox) {
+  const confBox = document.getElementById('detail-confidence-box');  if (confBox) {
     if (botScores.length) {
       const avg = botScores.reduce((a,b)=>a+b,0) / botScores.length;
       const pct = Math.round(avg * 100);
@@ -1093,6 +1094,17 @@ function updateDetailPanel(conv) {
         <div style="font-size:0.7rem;color:var(--text3);">${note}</div>`;
     } else {
       confBox.innerHTML = `<div style="font-size:0.78rem;color:var(--text2);">No bot replies yet in this conversation.</div>`;
+    }
+  }
+
+  const pauseBtn = document.getElementById('bot-pause-btn');
+  if (pauseBtn) {
+    if (conv.bot_paused) {
+      pauseBtn.textContent = '🤖 Return to bot';
+      pauseBtn.classList.add('warn');
+    } else {
+      pauseBtn.textContent = '🔀 Push to human';
+      pauseBtn.classList.remove('warn');
     }
   }
 }
@@ -1144,6 +1156,53 @@ async function blockContact() {
   await updateConvStatus(activeConvId, 'blocked');
   await insertSystemMessage(activeConvId, 'Contact blocked — no replies will be sent until unblocked.');
   showToast('Contact blocked ✓');
+}
+
+// Push to human / return to bot: pauses the AI auto-reply for this conversation so an agent
+// can answer manually, without blocking the customer or changing the conversation status.
+async function toggleBotPause() {
+  if (!activeConvId) return;
+  const conv = conversations.find(c => c.id === activeConvId);
+  const newState = !conv?.bot_paused;
+  try {
+    await authFetch('/conversation-bot-pause', { method: 'PATCH', body: JSON.stringify({ conversation_id: activeConvId, bot_paused: newState }) });
+    if (conv) conv.bot_paused = newState;
+    if (activeConv) activeConv.bot_paused = newState;
+    updateDetailPanel(activeConv || conv);
+    if (newState) {
+      await insertSystemMessage(activeConvId, 'Pushed to human — the bot will not auto-reply until returned.');
+      showToast('Pushed to human ✓ — bot replies paused');
+    } else {
+      await insertSystemMessage(activeConvId, 'Returned to bot — automated replies resumed.');
+      showToast('Returned to bot ✓');
+    }
+  } catch(e) { showToast('Failed to update'); }
+}
+
+// Permanently deletes this conversation and every message in it. Irreversible, so this asks
+// for confirmation twice given how easy it would be to click by accident.
+async function deleteConversation() {
+  if (!activeConvId) return;
+  const conv = conversations.find(c => c.id === activeConvId);
+  const label = conv?.contact_name || conv?.phone_number || 'this conversation';
+  if (!confirm(`Permanently delete ALL chat history with ${label}? This cannot be undone.`)) return;
+  if (!confirm('Are you sure? This will erase every message in this conversation forever.')) return;
+  try {
+    const res = await authFetch('/conversation-delete', { method: 'POST', body: JSON.stringify({ conversation_id: activeConvId }) });
+    if (res.ok) {
+      showToast('Conversation deleted');
+      conversations = conversations.filter(c => c.id !== activeConvId);
+      activeConvId = null;
+      activeConv = null;
+      currentMessages = [];
+      renderConversations();
+      document.getElementById('messages').innerHTML = '';
+      document.getElementById('ch-name').textContent = '';
+      document.getElementById('ch-sub').textContent = 'Select a conversation';
+    } else {
+      showToast('Delete failed');
+    }
+  } catch(e) { showToast('Delete failed'); }
 }
 
 // ───────────────────────── Realtime / misc ─────────────────────────

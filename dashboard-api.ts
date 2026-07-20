@@ -153,6 +153,34 @@ async function handleMuteConversation(req: Request): Promise<Response> {
   return json({ ok: true });
 }
 
+// "Push to human" toggle — when ON, the whatsapp-webhook function stops generating/sending any
+// AI auto-reply for this conversation (customer messages still arrive and are logged), so an
+// agent can reply manually from the dashboard. Toggle OFF to hand it back to the bot.
+async function handleBotPauseToggle(req: Request): Promise<Response> {
+  let body: { conversation_id?: string; bot_paused?: boolean };
+  try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
+  if (!body.conversation_id || typeof body.bot_paused !== "boolean") return json({ error: "conversation_id and bot_paused (boolean) are required" }, 400);
+  const { error } = await sb.from("wa_conversations").update({ bot_paused: body.bot_paused }).eq("id", body.conversation_id);
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+// Permanently delete a conversation and all of its messages. Irreversible — the frontend
+// should confirm with the user before calling this.
+async function handleDeleteConversation(req: Request): Promise<Response> {
+  let body: { conversation_id?: string };
+  try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
+  if (!body.conversation_id) return json({ error: "conversation_id is required" }, 400);
+
+  const { error: msgErr } = await sb.from("wa_messages").delete().eq("conversation_id", body.conversation_id);
+  if (msgErr) return json({ error: msgErr.message }, 500);
+
+  const { error: convErr } = await sb.from("wa_conversations").delete().eq("id", body.conversation_id);
+  if (convErr) return json({ error: convErr.message }, 500);
+
+  return json({ ok: true });
+}
+
 // ───────────────────────── Messages ─────────────────────────
 async function handleGetMessages(url: URL): Promise<Response> {
   const conversationId = url.searchParams.get("conversation_id");
@@ -352,6 +380,8 @@ serve(async (req: Request) => {
     if (path === "/conversations" && req.method === "GET") return await handleGetConversations();
     if (path === "/conversation-status" && req.method === "PATCH") return await handleConversationStatus(req);
     if (path === "/conversation-mute" && req.method === "PATCH") return await handleMuteConversation(req);
+    if (path === "/conversation-bot-pause" && req.method === "PATCH") return await handleBotPauseToggle(req);
+    if (path === "/conversation-delete" && req.method === "POST") return await handleDeleteConversation(req);
     if (path === "/messages" && req.method === "GET") return await handleGetMessages(url);
     if (path === "/system-message" && req.method === "POST") return await handleSystemMessage(req);
     if (path === "/message-delete" && req.method === "PATCH") return await handleDeleteMessage(req);
