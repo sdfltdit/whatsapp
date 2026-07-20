@@ -1,9 +1,11 @@
-const CACHE = 'sdf-inbox-v1';
+const CACHE = 'sdf-inbox-v2';
 const ASSETS = [
   '/',
   '/index.html',
   '/dashboard.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 self.addEventListener('install', e => {
@@ -53,8 +55,8 @@ self.addEventListener('push', e => {
   const data = e.data?.json() || {};
   self.registration.showNotification(data.title || 'SDF Inbox', {
     body: data.body || 'New message received',
-    icon: 'https://sdfltd.com/sdf.jpg',
-    badge: 'https://sdfltd.com/sdf.jpg',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     data: { url: data.url || '/dashboard.html' }
   });
 });

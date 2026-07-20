@@ -4,7 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SDF Clothing Inbox</title>
-  <link rel="icon" type="image/png" href="sdf.jpg">
+  <link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SDF Inbox">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0a0a">
 <style>
@@ -327,6 +331,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     </div>
 
     <div class="sidebar-footer">
+      <button class="icon-btn" id="install-app-btn" onclick="installApp()" style="display:none;">📲 Install app</button>
       <button class="icon-btn" onclick="refreshData()">↺ Refresh</button>
       <button class="icon-btn" onclick="signOut()">→ Sign out</button>
     </div>
@@ -543,13 +548,72 @@ window.addEventListener('load', async () => {
     const p = await Notification.requestPermission();
     notifGranted = p === 'granted';
   }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js');
+      if (notifGranted) await subscribeToPush(reg);
+    } catch (e) { console.error('SW registration failed', e); }
+  }
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone) {
+    const btn = document.getElementById('install-app-btn');
+    if (btn) btn.style.display = 'block';
+  }
 
   await loadData();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   startRealtime();
 });
+
+// ───────────────────────── Push notifications ─────────────────────────
+// This public key is safe to have in client-side code — it's the VAPID *public* key, meant to
+// be shared with the browser so it can create a subscription. The matching private key stays
+// server-side only (Supabase secret), never here.
+const VAPID_PUBLIC_KEY = 'BBcS1x9CTarS8p0sdAQF_KjjPiG_0P_vgHsIuMQXNdr43ai1AfJFetaTmPsyIQcpBY5kYn1fBNN-G13m2Fxrt5A';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function subscribeToPush(registration) {
+  try {
+    let sub = await registration.pushManager.getSubscription();
+    if (!sub) {
+      sub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    await authFetch('/push-subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub }) });
+  } catch (e) {
+    console.error('Push subscribe failed', e);
+  }
+}
+
+// ───────────────────────── Install as app (Android/desktop Chrome, Edge, etc.) ─────────────────────────
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('install-app-btn');
+  if (btn) btn.style.display = 'block';
+});
+
+async function installApp() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    document.getElementById('install-app-btn').style.display = 'none';
+  } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    alert('To install on iPhone/iPad: tap the Share button (⬆️) in Safari, then "Add to Home Screen".');
+  } else {
+    alert('Your browser doesn\'t support one-tap install here. Open the menu (⋮) and look for "Install app" or "Add to Home Screen".');
+  }
+}
 
 // ───────────────────────── Conversations ─────────────────────────
 async function loadData() {
