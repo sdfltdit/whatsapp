@@ -15,6 +15,22 @@
   "prefer_related_applications": false,
   "related_applications": [],
   "display_override": ["standalone", "minimal-ui", "browser"],
+  "shortcuts": [
+    {
+      "name": "Escalated conversations",
+      "short_name": "Escalated",
+      "description": "Jump straight to conversations that need human attention",
+      "url": "/dashboard.html?tab=escalated",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Missed conversations",
+      "short_name": "Missed",
+      "description": "Jump straight to conversations that were missed",
+      "url": "/dashboard.html?tab=missed",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
   "screenshots": [
     {
       "src": "/screenshot-wide.png",

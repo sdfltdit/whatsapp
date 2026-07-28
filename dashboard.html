@@ -563,6 +563,12 @@ window.addEventListener('load', async () => {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   startRealtime();
+
+  // Support deep-linking from app icon shortcuts, e.g. dashboard.html?tab=escalated
+  const tabParam = new URLSearchParams(location.search).get('tab');
+  if (tabParam && ['all', 'bot', 'escalated', 'missed'].includes(tabParam)) {
+    switchTab(tabParam);
+  }
 });
 
 // ───────────────────────── Push notifications ─────────────────────────
@@ -678,7 +684,8 @@ function updateStats() {
 function switchTab(tab, el) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
+  const btn = el || document.querySelector(`.tab[data-tab="${tab}"]`);
+  if (btn) btn.classList.add('active');
   renderConversations();
 }
 
