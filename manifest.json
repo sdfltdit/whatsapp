@@ -14,7 +14,7 @@
   "categories": ["business", "productivity"],
   "prefer_related_applications": false,
   "related_applications": [],
-  "display_override": ["standalone", "minimal-ui", "browser"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui", "browser"],
   "shortcuts": [
     {
       "name": "Escalated conversations",
