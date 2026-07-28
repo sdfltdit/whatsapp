@@ -255,6 +255,12 @@
 // talks to that one endpoint, and only ever stores the short-lived signed token it returns.
 const DASHBOARD_API_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co/functions/v1/dashboard-api';
 
+// Register the service worker here too (not just on dashboard.html) so the PWA is detected
+// and installable starting from this very first page a visitor/browser sees.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
 // Check if already logged in
 if (sessionStorage.getItem('sdf_session_token')) {
   window.location.href = 'dashboard.html';
