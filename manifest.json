@@ -13,6 +13,24 @@
   "orientation": "any",
   "categories": ["business", "productivity"],
   "prefer_related_applications": false,
+  "related_applications": [],
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "SDF Inbox — staff sign-in screen (desktop)"
+    },
+    {
+      "src": "/screenshot-narrow.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "SDF Inbox — staff sign-in screen (mobile)"
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
