@@ -34,7 +34,7 @@ const WA_ACCESS_TOKEN      = Deno.env.get("WA_ACCESS_TOKEN")!;
 const WA_PHONE_NUMBER_ID   = Deno.env.get("WA_PHONE_NUMBER_ID")!;
 const SESSION_SECRET       = Deno.env.get("SESSION_SECRET")!;
 const ALLOWED_ORIGIN       = Deno.env.get("ALLOWED_ORIGIN") || "*";
-const SESSION_TTL_MS       = 8 * 60 * 60 * 1000; // 8 hours
+const SESSION_TTL_MS       = 30 * 24 * 60 * 60 * 1000; // 30 days — installed-app-style persistent login
 
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 

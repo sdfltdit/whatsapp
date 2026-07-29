@@ -490,7 +490,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 // back to the login page automatically.
 const DASHBOARD_API_URL = 'https://qxlwlevbmyyhuooulfza.supabase.co/functions/v1/dashboard-api';
 
-function getSessionToken() { return sessionStorage.getItem('sdf_session_token'); }
+function getSessionToken() { return localStorage.getItem('sdf_session_token'); }
 
 async function authFetch(path, options = {}) {
   const token = getSessionToken();
@@ -501,8 +501,8 @@ async function authFetch(path, options = {}) {
   if (!(options.body instanceof FormData) && options.body) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${DASHBOARD_API_URL}${path}`, { ...options, headers });
   if (res.status === 401) {
-    sessionStorage.removeItem('sdf_session_token');
-    sessionStorage.removeItem('sdf_user');
+    localStorage.removeItem('sdf_session_token');
+    localStorage.removeItem('sdf_user');
     window.location.href = 'index.html';
     throw new Error('Session expired');
   }
@@ -537,8 +537,8 @@ let chatSearchHits = [];
 let chatSearchIdx  = -1;
 
 window.addEventListener('load', async () => {
-  const stored = sessionStorage.getItem('sdf_user');
-  const token  = sessionStorage.getItem('sdf_session_token');
+  const stored = localStorage.getItem('sdf_user');
+  const token  = localStorage.getItem('sdf_session_token');
   if (!stored || !token) { window.location.href = 'index.html'; return; }
   currentUser = JSON.parse(stored);
   const initials = (currentUser.full_name || currentUser.email).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
@@ -1352,7 +1352,7 @@ function mobileNav(view) {
   else document.getElementById('nav-chat').classList.add('active');
 }
 
-function signOut() { sessionStorage.removeItem('sdf_user'); sessionStorage.removeItem('sdf_session_token'); window.location.href = 'index.html'; }
+function signOut() { localStorage.removeItem('sdf_user'); localStorage.removeItem('sdf_session_token'); window.location.href = 'index.html'; }
 
 function statusLabel(s) { return { bot:'Bot', escalated:'Escalated', missed:'Missed', resolved:'Resolved', active:'Active', open:'Open' }[s] || s || 'Open'; }
 

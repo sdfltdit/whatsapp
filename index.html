@@ -262,7 +262,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // Check if already logged in
-if (sessionStorage.getItem('sdf_session_token')) {
+if (localStorage.getItem('sdf_session_token')) {
   window.location.href = 'dashboard.html';
 }
 
@@ -304,8 +304,8 @@ async function handleLogin() {
 
     // Only the signed session token + basic display info is stored — never a password,
     // never a raw DB row, and the token is useless to forge without the server's secret.
-    sessionStorage.setItem('sdf_session_token', data.token);
-    sessionStorage.setItem('sdf_user', JSON.stringify(data.user));
+    localStorage.setItem('sdf_session_token', data.token);
+    localStorage.setItem('sdf_user', JSON.stringify(data.user));
 
     window.location.href = 'dashboard.html';
 
