@@ -181,6 +181,35 @@ async function handleDeleteConversation(req: Request): Promise<Response> {
   return json({ ok: true });
 }
 
+// ───────────────────────── Push notification subscriptions ─────────────────────────
+// The dashboard subscribes each logged-in device to Web Push (browser handles the actual
+// subscription; we just store the resulting endpoint+keys here). whatsapp-webhook reads this
+// table to send a push notification whenever a new customer message arrives.
+async function handlePushSubscribe(req: Request, agent: { email: string }): Promise<Response> {
+  let body: { subscription?: { endpoint: string; keys: { p256dh: string; auth: string } } };
+  try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
+  const sub = body.subscription;
+  if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) return json({ error: "Invalid subscription object" }, 400);
+
+  const { error } = await sb.from("push_subscriptions").upsert({
+    staff_email: agent.email,
+    endpoint: sub.endpoint,
+    p256dh: sub.keys.p256dh,
+    auth: sub.keys.auth,
+  }, { onConflict: "endpoint" });
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+async function handlePushUnsubscribe(req: Request): Promise<Response> {
+  let body: { endpoint?: string };
+  try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
+  if (!body.endpoint) return json({ error: "endpoint is required" }, 400);
+  const { error } = await sb.from("push_subscriptions").delete().eq("endpoint", body.endpoint);
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
 // ───────────────────────── Messages ─────────────────────────
 async function handleGetMessages(url: URL): Promise<Response> {
   const conversationId = url.searchParams.get("conversation_id");
@@ -382,6 +411,8 @@ serve(async (req: Request) => {
     if (path === "/conversation-mute" && req.method === "PATCH") return await handleMuteConversation(req);
     if (path === "/conversation-bot-pause" && req.method === "PATCH") return await handleBotPauseToggle(req);
     if (path === "/conversation-delete" && req.method === "POST") return await handleDeleteConversation(req);
+    if (path === "/push-subscribe" && req.method === "POST") return await handlePushSubscribe(req, agent);
+    if (path === "/push-unsubscribe" && req.method === "POST") return await handlePushUnsubscribe(req);
     if (path === "/messages" && req.method === "GET") return await handleGetMessages(url);
     if (path === "/system-message" && req.method === "POST") return await handleSystemMessage(req);
     if (path === "/message-delete" && req.method === "PATCH") return await handleDeleteMessage(req);
