@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.sdfltd.inbox.twa",
+        "sha256_cert_fingerprints": ["18:68:57:EE:27:D5:29:AA:66:AE:40:FF:1B:3F:50:91:97:A9:EC:95:FF:0F:BB:93:23:BE:2D:85:4C:8B:68:A1"]
+      }
+    }]
