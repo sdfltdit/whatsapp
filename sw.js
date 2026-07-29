@@ -1,4 +1,4 @@
-const CACHE = 'sdf-inbox-v2';
+const CACHE = 'sdf-inbox-v3';
 const ASSETS = [
   '/',
   '/index.html',
@@ -35,18 +35,19 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for static assets
+  // Network-first for our own pages/scripts (index.html, dashboard.html, manifest.json, etc.)
+  // so code updates are picked up immediately instead of being stuck on whatever was cached
+  // the first time the app was installed. Cache is only used as an offline fallback.
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return res;
-      }).catch(() => caches.match('/index.html'));
-    })
+    fetch(e.request).then(res => {
+      if (res.ok) {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+      }
+      return res;
+    }).catch(() =>
+      caches.match(e.request).then(cached => cached || caches.match('/index.html'))
+    )
   );
 });
 
