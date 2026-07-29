@@ -547,12 +547,18 @@ window.addEventListener('load', async () => {
   if ('Notification' in window && Notification.permission !== 'denied') {
     const p = await Notification.requestPermission();
     notifGranted = p === 'granted';
+    if (!notifGranted) showToast('Notification permission: ' + p);
+  } else if ('Notification' in window) {
+    showToast('Notifications are blocked for this app — enable them in phone Settings');
   }
   if ('serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.register('sw.js');
       if (notifGranted) await subscribeToPush(reg);
-    } catch (e) { console.error('SW registration failed', e); }
+    } catch (e) {
+      console.error('SW registration failed', e);
+      showToast('Service worker error: ' + e.message);
+    }
   }
   if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone) {
     const btn = document.getElementById('install-app-btn');
@@ -593,9 +599,16 @@ async function subscribeToPush(registration) {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
     }
-    await authFetch('/push-subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub }) });
+    const res = await authFetch('/push-subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub }) });
+    if (res.ok) {
+      showToast('Push notifications enabled ✓');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast('Push subscribe save failed: ' + (err?.error || res.status));
+    }
   } catch (e) {
     console.error('Push subscribe failed', e);
+    showToast('Push subscribe error: ' + e.message);
   }
 }
 
