@@ -544,14 +544,18 @@ window.addEventListener('load', async () => {
   const initials = (currentUser.full_name || currentUser.email).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
 
-  if ('Notification' in window && Notification.permission !== 'denied') {
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    // Native Capacitor app: WebView can't do Web Push at all, so register a real FCM
+    // device token instead via the native Firebase Messaging plugin.
+    await registerFCM();
+  } else if ('Notification' in window && Notification.permission !== 'denied') {
     const p = await Notification.requestPermission();
     notifGranted = p === 'granted';
     if (!notifGranted) showToast('Notification permission: ' + p);
   } else if ('Notification' in window) {
     showToast('Notifications are blocked for this app — enable them in phone Settings');
   }
-  if ('serviceWorker' in navigator) {
+  if (!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) && 'serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.register('sw.js');
       if (notifGranted) await subscribeToPush(reg);
@@ -588,6 +592,33 @@ function urlBase64ToUint8Array(base64String) {
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(base64);
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+// Native app (Capacitor) push registration — uses the native Firebase Messaging plugin
+// (auto-injected as window.Capacitor.Plugins.FirebaseMessaging when built into the Android app).
+async function registerFCM() {
+  try {
+    const FirebaseMessaging = window.Capacitor.Plugins.FirebaseMessaging;
+    if (!FirebaseMessaging) { showToast('FCM plugin not available in this build'); return; }
+
+    const perm = await FirebaseMessaging.requestPermissions();
+    if (perm.receive !== 'granted') { showToast('Notification permission: ' + perm.receive); return; }
+
+    const result = await FirebaseMessaging.getToken();
+    if (!result?.token) { showToast('Could not get FCM device token'); return; }
+
+    const res = await authFetch('/fcm-register', { method: 'POST', body: JSON.stringify({ token: result.token }) });
+    if (res.ok) {
+      notifGranted = true;
+      showToast('Push notifications enabled ✓');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast('FCM register failed: ' + (err?.error || res.status));
+    }
+  } catch (e) {
+    console.error('registerFCM failed', e);
+    showToast('FCM error: ' + e.message);
+  }
 }
 
 async function subscribeToPush(registration) {
