@@ -1,0 +1,13 @@
+{
+  "appId": "com.sdfltd.inbox.twa",
+  "appName": "SDF Inbox",
+  "webDir": "www",
+  "server": {
+    "url": "https://inbox.sdfltd.com",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

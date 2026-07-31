@@ -210,6 +210,30 @@ async function handlePushUnsubscribe(req: Request): Promise<Response> {
   return json({ ok: true });
 }
 
+// FCM token registration — used by the native Capacitor app (Web Push doesn't work in its
+// WebView, so it registers a Firebase Cloud Messaging token here instead).
+async function handleFcmRegister(req: Request, agent: { email: string }): Promise<Response> {
+  let body: { token?: string };
+  try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
+  if (!body.token) return json({ error: "token is required" }, 400);
+
+  const { error } = await sb.from("fcm_tokens").upsert({
+    staff_email: agent.email,
+    token: body.token,
+  }, { onConflict: "token" });
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+async function handleFcmUnregister(req: Request): Promise<Response> {
+  let body: { token?: string };
+  try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
+  if (!body.token) return json({ error: "token is required" }, 400);
+  const { error } = await sb.from("fcm_tokens").delete().eq("token", body.token);
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
 // ───────────────────────── Messages ─────────────────────────
 async function handleGetMessages(url: URL): Promise<Response> {
   const conversationId = url.searchParams.get("conversation_id");
@@ -413,6 +437,8 @@ serve(async (req: Request) => {
     if (path === "/conversation-delete" && req.method === "POST") return await handleDeleteConversation(req);
     if (path === "/push-subscribe" && req.method === "POST") return await handlePushSubscribe(req, agent);
     if (path === "/push-unsubscribe" && req.method === "POST") return await handlePushUnsubscribe(req);
+    if (path === "/fcm-register" && req.method === "POST") return await handleFcmRegister(req, agent);
+    if (path === "/fcm-unregister" && req.method === "POST") return await handleFcmUnregister(req);
     if (path === "/messages" && req.method === "GET") return await handleGetMessages(url);
     if (path === "/system-message" && req.method === "POST") return await handleSystemMessage(req);
     if (path === "/message-delete" && req.method === "PATCH") return await handleDeleteMessage(req);

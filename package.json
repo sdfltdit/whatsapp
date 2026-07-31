@@ -1,0 +1,16 @@
+{
+  "name": "sdf-inbox",
+  "version": "1.0.0",
+  "description": "SDF Clothing staff inbox — native Android wrapper",
+  "scripts": {
+    "build": "echo 'no build step — using remote server URL'"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor-firebase/messaging": "^6.3.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}
