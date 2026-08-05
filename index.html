@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
+<script>
+// Redirect BEFORE the page paints anything, if already logged in — this must run first,
+// before any visible HTML below, otherwise the browser paints the login form first and then
+// jumps to the dashboard a moment later, causing a visible "flash" of the login screen every
+// time the app opens. Using replace() (not href) so the login page isn't left in browser
+// history — pressing back from the dashboard won't loop back through it.
+if (localStorage.getItem('sdf_session_token')) {
+  window.location.replace('dashboard.html');
+}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>SDF Clothing Staff Dashboard</title>

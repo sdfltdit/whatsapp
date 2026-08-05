@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+// Redirect to login BEFORE this page paints anything, if not logged in — same reasoning as
+// index.html's early check, just the opposite direction: without this, someone landing here
+// without a valid session sees the full dashboard flash for a moment before bouncing to login.
+if (!localStorage.getItem('sdf_session_token')) {
+  window.location.replace('index.html');
+}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SDF Clothing Inbox</title>
   <link rel="icon" type="image/png" href="icon-192.png">
