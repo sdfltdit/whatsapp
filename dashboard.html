@@ -10,7 +10,7 @@ if (!localStorage.getItem('sdf_session_token')) {
   window.location.replace('index.html');
 }
 </script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
 <title>SDF Clothing Inbox</title>
   <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -49,11 +49,11 @@ if (!localStorage.getItem('sdf_session_token')) {
 
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
 
-.app { display: flex; height: 100vh; }
+.app { display: flex; height: 100vh; height: 100dvh; }
 
 /* ── Sidebar ── */
 .sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.sidebar-header { padding: 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.6rem; }
+.sidebar-header { padding: calc(1rem + env(safe-area-inset-top)) 1rem 1rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.6rem; }
 .logo-sm { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface2); border: 1px solid var(--border2); }
 .logo-fallback { width: 28px; height: 28px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: var(--accent); flex-shrink: 0; }
 .sidebar-title { font-size: 0.88rem; font-weight: 600; color: var(--text); }
@@ -62,7 +62,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--surface3); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: var(--text2); cursor: pointer; flex-shrink: 0; }
 
 .tabs { display: flex; padding: 0.6rem 0.75rem; gap: 0.3rem; border-bottom: 1px solid var(--border); }
-.tab { flex: 1; padding: 0.4rem 0.3rem; font-size: 0.72rem; font-weight: 500; color: var(--text2); background: transparent; border: none; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.15s; position: relative; }
+.tab { flex: 1; min-height: 44px; padding: 0.4rem 0.3rem; font-size: 0.72rem; font-weight: 500; color: var(--text2); background: transparent; border: none; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.15s; position: relative; }
 .tab.active { background: var(--surface3); color: var(--text); }
 .tab:hover:not(.active) { color: var(--text); }
 .tab .badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: #fff; font-size: 0.6rem; font-weight: 700; margin-left: 4px; vertical-align: middle; }
@@ -94,13 +94,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 4px; }
 
 .sidebar-footer { padding: 0.75rem 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; }
-.icon-btn { flex: 1; padding: 0.45rem; background: transparent; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text2); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.3rem; }
+.icon-btn { flex: 1; min-height: 44px; padding: 0.45rem; background: transparent; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text2); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.3rem; }
 .icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
 
 /* ── Chat area ── */
 .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-width: 0; position: relative; }
 
-.chat-header { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.75rem; background: var(--surface); }
+.chat-header { padding: calc(0.85rem + env(safe-area-inset-top)) 1.25rem 0.85rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.75rem; background: var(--surface); }
 .chat-header-info { flex: 1; min-width: 0; }
 .chat-header-name { font-size: 0.92rem; font-weight: 600; }
 .chat-header-sub { font-size: 0.72rem; color: var(--text2); margin-top: 1px; }
@@ -159,6 +159,11 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .tick-failed { color: var(--danger); }
 
 .msg-actions-btn { opacity: 0; transition: opacity 0.15s; width: 22px; height: 22px; border-radius: 50%; border: none; background: transparent; color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; align-self: center; font-size: 0.9rem; }
+@media (hover: none) and (pointer: coarse) {
+  /* Touch devices (phones/tablets) can't hover to reveal this button, and 22px is too small
+     to tap reliably — always visible and enlarged to a proper touch target on touch screens. */
+  .msg-actions-btn { opacity: 1; width: 36px; height: 36px; font-size: 1.1rem; }
+}
 .msg-row:hover .msg-actions-btn { opacity: 1; }
 
 .date-divider { text-align: center; font-size: 0.7rem; color: var(--text3); padding: 0.5rem 0; display: flex; align-items: center; gap: 0.75rem; }
@@ -190,14 +195,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .voice-send { background: var(--accent); color: #000; }
 
 /* Reply bar */
-.reply-bar { padding: 0.75rem 1rem; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 0.5rem; align-items: flex-end; }
-.reply-input { flex: 1; padding: 0.6rem 0.85rem; background: var(--surface2); border: 1px solid var(--border2); border-radius: 20px; color: var(--text); font-size: 0.83rem; font-family: var(--font); outline: none; resize: none; max-height: 120px; line-height: 1.4; }
+.reply-bar { padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom)) 1rem; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 0.5rem; align-items: flex-end; }
+.reply-input { flex: 1; padding: 0.6rem 0.85rem; background: var(--surface2); border: 1px solid var(--border2); border-radius: 20px; color: var(--text); font-size: 16px; font-family: var(--font); outline: none; resize: none; max-height: 120px; line-height: 1.4; }
 .reply-input::placeholder { color: var(--text3); }
 .reply-input:focus { border-color: #3a3a3a; }
-.send-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; }
+.send-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; }
 .send-btn:hover { background: var(--accent-dim); }
-.send-btn svg { width: 16px; height: 16px; fill: #000; }
-.attach-btn, .mic-btn { width: 36px; height: 36px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border2); color: var(--text2); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+.send-btn svg { width: 18px; height: 18px; fill: #000; }
+.attach-btn, .mic-btn { width: 44px; height: 44px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border2); color: var(--text2); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
 .attach-btn:hover, .mic-btn:hover { background: var(--surface3); color: var(--text); }
 
 /* ── Detail panel ── */
@@ -214,7 +219,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .chip.escalated { background: var(--warn-bg); color: var(--warn); border: 1px solid #3d2a00; }
 .chip.missed { background: var(--danger-bg); color: var(--danger); border: 1px solid #3d0808; }
 .chip.resolved { background: var(--surface3); color: var(--text2); border: 1px solid var(--border2); }
-.action-btn { width: 100%; padding: 0.5rem; background: transparent; border: 1px solid var(--border2); border-radius: var(--radius); color: var(--text2); font-size: 0.77rem; cursor: pointer; margin-bottom: 0.4rem; transition: all 0.15s; text-align: left; display: flex; align-items: center; gap: 0.5rem; }
+.action-btn { width: 100%; min-height: 44px; padding: 0.5rem; background: transparent; border: 1px solid var(--border2); border-radius: var(--radius); color: var(--text2); font-size: 0.77rem; cursor: pointer; margin-bottom: 0.4rem; transition: all 0.15s; text-align: left; display: flex; align-items: center; gap: 0.5rem; }
 .action-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
 .action-btn.green:hover { background: var(--accent-bg); color: var(--accent); border-color: #0d2e15; }
 .action-btn.warn:hover { background: var(--warn-bg); color: var(--warn); border-color: #3d2a00; }
@@ -229,7 +234,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 0.6rem 1.2rem; font-size: 0.8rem; color: var(--text); opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 9999; white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-.mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 100; }
+.mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
 
 /* ── Overlays: action sheet / media preview / forward modal ── */
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: flex-end; justify-content: center; z-index: 500; }
@@ -275,7 +280,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   .detail-panel.open { transform: translateX(0); }
   .chat-area { padding-bottom: 56px; }
   .mobile-nav { display: flex; }
-  .mobile-nav-btn { flex: 1; padding: 0.6rem; background: transparent; border: none; color: var(--text2); font-size: 0.65rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: color 0.15s; }
+  .mobile-nav-btn { flex: 1; min-height: 52px; padding: 0.6rem; background: transparent; border: none; color: var(--text2); font-size: 0.65rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; transition: color 0.15s; }
   .mobile-nav-btn.active { color: var(--accent); }
   .nav-icon { font-size: 1.1rem; }
 }
@@ -285,7 +290,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   .detail-panel.open { display: flex; }
 }
 
-.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 1rem; background: var(--bg); }
+.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; height: 100dvh; gap: 1rem; background: var(--bg); }
 .loading-spinner { width: 32px; height: 32px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-text { font-size: 0.8rem; color: var(--text3); }
