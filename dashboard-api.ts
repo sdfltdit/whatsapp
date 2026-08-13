@@ -26,6 +26,7 @@ import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 //   WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID       (same values as whatsapp-webhook)
 //   SESSION_SECRET                            (new — any long random string)
 //   ALLOWED_ORIGIN                            (e.g. https://inbox.sdfltd.com)
+//   CF_API_TOKEN, CF_ACCOUNT_ID, CF_DATABASE_ID  (Cloudflare D1 — website inquiry form leads)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SUPABASE_URL         = Deno.env.get("SUPABASE_URL")!;
@@ -35,6 +36,13 @@ const WA_PHONE_NUMBER_ID   = Deno.env.get("WA_PHONE_NUMBER_ID")!;
 const SESSION_SECRET       = Deno.env.get("SESSION_SECRET")!;
 const ALLOWED_ORIGIN       = Deno.env.get("ALLOWED_ORIGIN") || "*";
 const SESSION_TTL_MS       = 30 * 24 * 60 * 60 * 1000; // 30 days — installed-app-style persistent login
+
+// Cloudflare D1 — the website's contact/inquiry form writes leads here directly (a separate
+// system from WhatsApp). We read/update it via Cloudflare's REST API for D1, since a Deno/
+// Supabase function can't connect to D1 the way a Cloudflare Worker would.
+const CF_API_TOKEN   = Deno.env.get("CF_API_TOKEN") || "";
+const CF_ACCOUNT_ID  = Deno.env.get("CF_ACCOUNT_ID") || "";
+const CF_DATABASE_ID = Deno.env.get("CF_DATABASE_ID") || "";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -167,6 +175,46 @@ async function handleBotPauseToggle(req: Request): Promise<Response> {
 
 // Permanently delete a conversation and all of its messages. Irreversible — the frontend
 // should confirm with the user before calling this.
+// ───────────────────────── Cloudflare D1 (website inquiry form leads) ─────────────────────────
+async function d1Query(sql: string, params: unknown[] = []): Promise<{ results: Record<string, unknown>[] } | { error: string }> {
+  if (!CF_API_TOKEN || !CF_ACCOUNT_ID || !CF_DATABASE_ID) return { error: "Cloudflare D1 secrets are not configured" };
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_DATABASE_ID}/query`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${CF_API_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ sql, params }),
+      },
+    );
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      console.error("D1 query error:", JSON.stringify(data));
+      return { error: data?.errors?.[0]?.message || "D1 query failed" };
+    }
+    return { results: data?.result?.[0]?.results || [] };
+  } catch (e) {
+    console.error("D1 query exception:", e);
+    return { error: String(e) };
+  }
+}
+
+async function handleGetInquiries(): Promise<Response> {
+  const result = await d1Query("SELECT * FROM inquiries ORDER BY submitted_at DESC LIMIT 200");
+  if ("error" in result) return json({ error: result.error }, 500);
+  return json(result.results);
+}
+
+async function handleUpdateInquiryStatus(req: Request): Promise<Response> {
+  let body: { id?: number; status?: string };
+  try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
+  const ALLOWED = ["pending", "contacted", "quoted", "won", "lost", "spam"];
+  if (!body.id || !body.status || !ALLOWED.includes(body.status)) return json({ error: "Invalid id or status" }, 400);
+  const result = await d1Query("UPDATE inquiries SET status = ? WHERE id = ?", [body.status, body.id]);
+  if ("error" in result) return json({ error: result.error }, 500);
+  return json({ ok: true });
+}
+
 async function handleDeleteConversation(req: Request): Promise<Response> {
   let body: { conversation_id?: string };
   try { body = await req.json(); } catch { return json({ error: "Invalid request body" }, 400); }
@@ -439,6 +487,8 @@ serve(async (req: Request) => {
     if (path === "/push-unsubscribe" && req.method === "POST") return await handlePushUnsubscribe(req);
     if (path === "/fcm-register" && req.method === "POST") return await handleFcmRegister(req, agent);
     if (path === "/fcm-unregister" && req.method === "POST") return await handleFcmUnregister(req);
+    if (path === "/inquiries" && req.method === "GET") return await handleGetInquiries();
+    if (path === "/inquiries-status" && req.method === "PATCH") return await handleUpdateInquiryStatus(req);
     if (path === "/messages" && req.method === "GET") return await handleGetMessages(url);
     if (path === "/system-message" && req.method === "POST") return await handleSystemMessage(req);
     if (path === "/message-delete" && req.method === "PATCH") return await handleDeleteMessage(req);
