@@ -327,6 +327,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <div class="stat"><div class="stat-num" id="stat-active">—</div><div class="stat-label">Active</div></div>
       <div class="stat"><div class="stat-num" id="stat-escalated" style="color:var(--warn)">—</div><div class="stat-label">Escalated</div></div>
       <div class="stat"><div class="stat-num" id="stat-missed" style="color:var(--danger)">—</div><div class="stat-label">Missed</div></div>
+      <div class="stat"><div class="stat-num" id="stat-today-msgs" style="color:var(--accent)">—</div><div class="stat-label">Today texts</div></div>
+    </div>
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Total chats</div></div>
+      <div class="stat"><div class="stat-num" id="stat-today-cust">—</div><div class="stat-label">Today customers</div></div>
+      <div class="stat"><div class="stat-num" id="stat-today-out">—</div><div class="stat-label">Replies sent</div></div>
     </div>
 
     <div class="tabs">
@@ -725,6 +731,23 @@ async function loadData() {
 
     updateStats();
     renderConversations();
+    loadStats();
+  } catch(e) {}
+}
+
+// Accurate counts from the server (total, today's messages, etc.)
+async function loadStats() {
+  try {
+    const res = await authFetch('/stats', { method: 'GET' });
+    if (!res.ok) return;
+    const s = await res.json();
+    document.getElementById('stat-active').textContent     = s.active;
+    document.getElementById('stat-escalated').textContent  = s.escalated;
+    document.getElementById('stat-missed').textContent     = s.missed;
+    document.getElementById('stat-total').textContent      = s.total;
+    document.getElementById('stat-today-msgs').textContent = s.today_inbound;
+    document.getElementById('stat-today-cust').textContent = s.today_customers;
+    document.getElementById('stat-today-out').textContent  = s.today_outbound;
   } catch(e) {}
 }
 
@@ -745,9 +768,11 @@ function updateStats() {
   const active    = conversations.filter(c => c.status === 'bot' || c.status === 'open' || c.status === 'active').length;
   const escalated = conversations.filter(c => c.status === 'escalated').length;
   const missed    = conversations.filter(c => c.status === 'missed').length;
+  // Fallback numbers from the loaded list; loadStats() overwrites them with exact server counts
   document.getElementById('stat-active').textContent    = active;
   document.getElementById('stat-escalated').textContent = escalated;
   document.getElementById('stat-missed').textContent    = missed;
+  document.getElementById('stat-total').textContent     = conversations.length;
   const escBadge  = document.getElementById('esc-badge');
   const missBadge = document.getElementById('miss-badge');
   if (escalated > 0) { escBadge.textContent = escalated; escBadge.style.display = 'inline-flex'; } else escBadge.style.display = 'none';
