@@ -736,11 +736,14 @@ async function loadData() {
 }
 
 // Accurate counts from the server (total, today's messages, etc.)
+let serverStatsLoaded = false;
 async function loadStats() {
   try {
     const res = await authFetch('/stats', { method: 'GET' });
     if (!res.ok) return;
     const s = await res.json();
+    if (typeof s.total !== 'number') return;
+    serverStatsLoaded = true;
     document.getElementById('stat-active').textContent     = s.active;
     document.getElementById('stat-escalated').textContent  = s.escalated;
     document.getElementById('stat-missed').textContent     = s.missed;
@@ -768,11 +771,13 @@ function updateStats() {
   const active    = conversations.filter(c => c.status === 'bot' || c.status === 'open' || c.status === 'active').length;
   const escalated = conversations.filter(c => c.status === 'escalated').length;
   const missed    = conversations.filter(c => c.status === 'missed').length;
-  // Fallback numbers from the loaded list; loadStats() overwrites them with exact server counts
-  document.getElementById('stat-active').textContent    = active;
-  document.getElementById('stat-escalated').textContent = escalated;
-  document.getElementById('stat-missed').textContent    = missed;
-  document.getElementById('stat-total').textContent     = conversations.length;
+  // Local numbers only as a fallback, and only until the server counts have loaded once
+  if (!serverStatsLoaded) {
+    document.getElementById('stat-active').textContent    = active;
+    document.getElementById('stat-escalated').textContent = escalated;
+    document.getElementById('stat-missed').textContent    = missed;
+    document.getElementById('stat-total').textContent     = conversations.length;
+  }
   const escBadge  = document.getElementById('esc-badge');
   const missBadge = document.getElementById('miss-badge');
   if (escalated > 0) { escBadge.textContent = escalated; escBadge.style.display = 'inline-flex'; } else escBadge.style.display = 'none';
