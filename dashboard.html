@@ -61,12 +61,24 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .sidebar-user { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
 .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--surface3); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: var(--text2); cursor: pointer; flex-shrink: 0; }
 
-.tabs { display: flex; padding: 0.6rem 0.75rem; gap: 0.3rem; border-bottom: 1px solid var(--border); }
-.tab { flex: 1; min-height: 44px; padding: 0.4rem 0.3rem; font-size: 0.72rem; font-weight: 500; color: var(--text2); background: transparent; border: none; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.15s; position: relative; }
+.tabs { display: flex; padding: 0.6rem 0.75rem; gap: 0.3rem; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 1 0 auto; min-height: 44px; padding: 0.4rem 0.55rem; white-space: nowrap; font-size: 0.72rem; font-weight: 500; color: var(--text2); background: transparent; border: none; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.15s; position: relative; }
 .tab.active { background: var(--surface3); color: var(--text); }
 .tab:hover:not(.active) { color: var(--text); }
 .tab .badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: #fff; font-size: 0.6rem; font-weight: 700; margin-left: 4px; vertical-align: middle; }
 
+.load-more { display:block; width:calc(100% - 1.5rem); margin:0.6rem 0.75rem; padding:0.6rem; background:var(--surface2); border:1px solid var(--border2); border-radius:8px; color:var(--text2); font-size:0.78rem; cursor:pointer; font-family:var(--font); }
+.load-more:hover { color:var(--text); }
+.qr-btn { width:36px; height:36px; flex-shrink:0; border-radius:50%; border:1px solid var(--border2); background:var(--surface2); color:var(--warn); font-size:1rem; cursor:pointer; }
+.qr-panel { display:none; position:absolute; left:0.75rem; right:0.75rem; bottom:100%; margin-bottom:6px; max-height:260px; overflow-y:auto; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:30; }
+.qr-panel.show { display:block; }
+.qr-item { display:flex; align-items:center; gap:0.4rem; padding:0.6rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.8rem; color:var(--text); cursor:pointer; }
+.qr-item:hover { background:var(--surface3); }
+.qr-item span { flex:1; }
+.qr-del { background:transparent; border:none; color:var(--text3); cursor:pointer; font-size:0.9rem; }
+.qr-add { padding:0.6rem 0.75rem; font-size:0.78rem; color:var(--accent); cursor:pointer; text-align:center; }
+.reply-bar { position: relative; }
 .search-wrap { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
 .search-input { width: 100%; padding: 0.45rem 0.7rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.8rem; font-family: var(--font); outline: none; }
 .search-input::placeholder { color: var(--text3); }
@@ -333,10 +345,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <div class="stat"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Total chats</div></div>
       <div class="stat"><div class="stat-num" id="stat-today-cust">—</div><div class="stat-label">Today customers</div></div>
       <div class="stat"><div class="stat-num" id="stat-today-out">—</div><div class="stat-label">Replies sent</div></div>
+      <div class="stat"><div class="stat-num" id="stat-need-reply" style="color:var(--danger)">—</div><div class="stat-label">Need reply</div></div>
     </div>
 
     <div class="tabs">
       <button class="tab active" data-tab="all" onclick="switchTab('all', this)">All</button>
+      <button class="tab" data-tab="reply" onclick="switchTab('reply', this)">Need reply <span class="badge" id="reply-badge" style="display:none">0</span></button>
+      <button class="tab" data-tab="unread" onclick="switchTab('unread', this)">Unread</button>
       <button class="tab" data-tab="bot" onclick="switchTab('bot', this)">Bot</button>
       <button class="tab" data-tab="escalated" onclick="switchTab('escalated', this)">Escalated <span class="badge" id="esc-badge" style="display:none">0</span></button>
       <button class="tab" data-tab="missed" onclick="switchTab('missed', this)">Missed <span class="badge" id="miss-badge" style="display:none">0</span></button>
@@ -406,6 +421,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
         <input type="file" id="file-input" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" onchange="handleFileSelect(this)">
       </label>
+      <div class="qr-panel" id="qr-panel"></div>
+      <button class="qr-btn" id="qr-btn" onclick="toggleQuickReplies()" title="Quick replies">⚡</button>
       <textarea class="reply-input" id="reply-input" placeholder="Type a reply…" rows="1" onkeydown="handleReplyKey(event)" oninput="autoResize(this)"></textarea>
       <button class="mic-btn" id="mic-btn" onclick="startVoiceRecording()" title="Record voice note">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>
@@ -729,6 +746,13 @@ async function loadData() {
       unread_count: c.unread_count || 0
     }));
 
+    // keep any older chats the user loaded with "Load more"
+    if (olderConvs.length) {
+      const have = new Set(conversations.map(c => c.id));
+      conversations = conversations.concat(olderConvs.filter(c => !have.has(c.id)));
+    }
+    if (!loadMoreTouched) hasMore = data.length >= 100;
+
     updateStats();
     renderConversations();
     loadStats();
@@ -737,6 +761,13 @@ async function loadData() {
 
 // Accurate counts from the server (total, today's messages, etc.)
 let serverStatsLoaded = false;
+let needsReplyIds = new Set();
+let olderConvs = [];
+let hasMore = false;
+let loadMoreTouched = false;
+let searchResults = null;
+let searchTimer = null;
+let currentSearch = '';
 async function loadStats() {
   try {
     const res = await authFetch('/stats', { method: 'GET' });
@@ -751,6 +782,11 @@ async function loadStats() {
     document.getElementById('stat-today-msgs').textContent = s.today_inbound;
     document.getElementById('stat-today-cust').textContent = s.today_customers;
     document.getElementById('stat-today-out').textContent  = s.today_outbound;
+    document.getElementById('stat-need-reply').textContent = s.needs_reply;
+    needsReplyIds = new Set(s.needs_reply_ids || []);
+    const rb = document.getElementById('reply-badge');
+    if (s.needs_reply > 0) { rb.textContent = s.needs_reply; rb.style.display = 'inline-flex'; } else rb.style.display = 'none';
+    renderConversations();
   } catch(e) {}
 }
 
@@ -792,17 +828,63 @@ function switchTab(tab, el) {
   renderConversations();
 }
 
-function filterConversations(query) { renderConversations(query); }
+function mapConv(c) {
+  return {
+    id: c.id, phone_number: c.phone_number || '', contact_name: c.contact_name || '',
+    last_message: c.last_message || '', status: c.status || 'open',
+    updated_at: c.last_message_at || c.created_at, unread_count: c.unread_count || 0
+  };
+}
 
-function renderConversations(search = '') {
-  let list = conversations;
-  if (activeTab !== 'all') list = list.filter(c => c.status === activeTab);
-  if (search) {
+// Search runs on the server, so it covers ALL chats (not just the 100 loaded ones)
+function filterConversations(query) {
+  currentSearch = (query || '').trim();
+  clearTimeout(searchTimer);
+  if (currentSearch.length < 2) { searchResults = null; renderConversations(); return; }
+  renderConversations(); // instant local filter while the server answers
+  searchTimer = setTimeout(async () => {
+    const q = currentSearch;
+    try {
+      const res = await authFetch('/conversations?limit=100&q=' + encodeURIComponent(q), { method: 'GET' });
+      if (!res.ok || q !== currentSearch) return;
+      const data = await res.json();
+      if (Array.isArray(data)) { searchResults = data.map(mapConv); renderConversations(); }
+    } catch(e) {}
+  }, 300);
+}
+
+async function loadMoreConversations() {
+  const btn = document.getElementById('load-more-btn');
+  if (btn) btn.textContent = 'Loading…';
+  try {
+    const offset = 100 + olderConvs.length;
+    const res = await authFetch('/conversations?limit=100&offset=' + offset, { method: 'GET' });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    loadMoreTouched = true;
+    const have = new Set(conversations.map(c => c.id));
+    const fresh = data.map(mapConv).filter(c => !have.has(c.id));
+    olderConvs = olderConvs.concat(fresh);
+    conversations = conversations.concat(fresh);
+    hasMore = data.length >= 100;
+  } catch(e) { showToast('Could not load more'); }
+  renderConversations();
+}
+
+function renderConversations() {
+  const search = currentSearch;
+  let list = (search.length >= 2 && searchResults) ? searchResults : conversations;
+  if (activeTab === 'reply')       list = list.filter(c => needsReplyIds.has(c.id));
+  else if (activeTab === 'unread') list = list.filter(c => c.unread_count > 0);
+  else if (activeTab !== 'all')    list = list.filter(c => c.status === activeTab);
+  if (search && !(search.length >= 2 && searchResults)) {
     const q = search.toLowerCase();
-    list = list.filter(c => (c.contact_name||c.phone_number||'').toLowerCase().includes(q) || (c.last_message||'').toLowerCase().includes(q));
+    list = list.filter(c => (c.contact_name||c.phone_number||'').toLowerCase().includes(q) || (c.phone_number||'').includes(q) || (c.last_message||'').toLowerCase().includes(q));
   }
   const container = document.getElementById('conv-list');
-  if (!list.length) { container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.8rem;">No conversations</div>'; return; }
+  const showMore = hasMore && !search && (activeTab === 'all');
+  const moreBtn = showMore ? '<button class="load-more" id="load-more-btn" onclick="loadMoreConversations()">Load older chats</button>' : '';
+  if (!list.length) { container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3);font-size:0.8rem;">No conversations</div>' + moreBtn; return; }
   container.innerHTML = list.map(conv => {
     const name     = conv.contact_name || conv.phone_number || 'Unknown';
     const initials = name.slice(0,2).toUpperCase();
@@ -823,7 +905,7 @@ function renderConversations(search = '') {
       </div>
       ${conv.unread_count > 0 ? '<div class="unread-dot"></div>' : ''}
     </div>`;
-  }).join('');
+  }).join('') + moreBtn;
 }
 
 // ───────────────────────── Open conversation ─────────────────────────
@@ -986,6 +1068,45 @@ async function sendReply() {
     }
   } catch(e) { showToast('Connection error'); }
   finally { if (btn) btn.disabled = false; }
+}
+
+// ───────────────────────── Quick replies ─────────────────────────
+const DEFAULT_QR = [
+  'Hi! Thanks for contacting SDF Clothing. How can we help you today?',
+  'Could you please share the product type, quantity and design details so we can prepare a quote?',
+  'Thank you! Our team will get back to you shortly.',
+  'Could you please share your email address so we can send the details?'
+];
+function getQR() {
+  try { const v = JSON.parse(localStorage.getItem('sdf_quick_replies') || 'null'); if (Array.isArray(v)) return v; } catch(e) {}
+  return DEFAULT_QR.slice();
+}
+function saveQR(list) { try { localStorage.setItem('sdf_quick_replies', JSON.stringify(list)); } catch(e) {} }
+function toggleQuickReplies() {
+  const panel = document.getElementById('qr-panel');
+  if (panel.classList.contains('show')) { panel.classList.remove('show'); return; }
+  renderQuickReplies();
+  panel.classList.add('show');
+}
+function renderQuickReplies() {
+  const list = getQR();
+  document.getElementById('qr-panel').innerHTML =
+    list.map((t, i) => `<div class="qr-item" onclick="useQuickReply(${i})"><span>${escapeHtml(t)}</span><button class="qr-del" title="Delete" onclick="event.stopPropagation();deleteQuickReply(${i})">✕</button></div>`).join('') +
+    '<div class="qr-add" onclick="addQuickReply()">+ Add new quick reply</div>';
+}
+function useQuickReply(i) {
+  const t = getQR()[i]; if (t == null) return;
+  const input = document.getElementById('reply-input');
+  input.value = t; autoResize(input); input.focus();
+  document.getElementById('qr-panel').classList.remove('show');
+}
+function addQuickReply() {
+  const t = prompt('New quick reply text:');
+  if (!t || !t.trim()) return;
+  const list = getQR(); list.push(t.trim()); saveQR(list); renderQuickReplies();
+}
+function deleteQuickReply(i) {
+  const list = getQR(); list.splice(i, 1); saveQR(list); renderQuickReplies();
 }
 
 function handleReplyKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); } }
