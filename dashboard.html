@@ -105,6 +105,11 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .status-dot.resolved { background: var(--text3); }
 .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 4px; }
 
+/* Channel tag shown before the contact name: WA = WhatsApp, FB = Facebook Messenger */
+.ch-tag { display: inline-block; font-size: 0.58rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
+.ch-tag.wa { background: #0d1f12; color: #22c55e; }
+.ch-tag.fb { background: #080f1c; color: #3b82f6; }
+
 .sidebar-footer { padding: 0.75rem 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; }
 .icon-btn { flex: 1; min-height: 44px; padding: 0.45rem; background: transparent; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text2); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.3rem; }
 .icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
@@ -743,7 +748,9 @@ async function loadData() {
       last_message: c.last_message || '',
       status: c.status || 'open',
       updated_at: c.last_message_at || c.created_at,
-      unread_count: c.unread_count || 0
+      unread_count: c.unread_count || 0,
+      channel: c.channel || 'whatsapp',
+      bot_paused: !!c.bot_paused
     }));
 
     // keep any older chats the user loaded with "Load more"
@@ -752,6 +759,12 @@ async function loadData() {
       conversations = conversations.concat(olderConvs.filter(c => !have.has(c.id)));
     }
     if (!loadMoreTouched) hasMore = data.length >= 100;
+
+    // The list is rebuilt every few seconds — keep the open chat pointing at the fresh copy
+    if (activeConvId) {
+      const fresh = conversations.find(c => c.id === activeConvId);
+      if (fresh) activeConv = fresh;
+    }
 
     updateStats();
     renderConversations();
@@ -832,7 +845,8 @@ function mapConv(c) {
   return {
     id: c.id, phone_number: c.phone_number || '', contact_name: c.contact_name || '',
     last_message: c.last_message || '', status: c.status || 'open',
-    updated_at: c.last_message_at || c.created_at, unread_count: c.unread_count || 0
+    updated_at: c.last_message_at || c.created_at, unread_count: c.unread_count || 0,
+    channel: c.channel || 'whatsapp', bot_paused: !!c.bot_paused
   };
 }
 
@@ -891,11 +905,12 @@ function renderConversations() {
     const time     = formatTime(conv.updated_at);
     const isActive = conv.id === activeConvId;
     const statusCl = conv.status || 'open';
+    const chTag    = conv.channel === 'facebook' ? '<span class="ch-tag fb">FB</span>' : '<span class="ch-tag wa">WA</span>';
     return `<div class="conv-item ${isActive ? 'active' : ''}" onclick="openConversation('${conv.id}')">
       <div class="conv-avatar">${initials}</div>
       <div class="conv-info">
         <div class="conv-top">
-          <div class="conv-name">${escapeHtml(name)}</div>
+          <div class="conv-name">${chTag}${escapeHtml(name)}</div>
           <div class="conv-time">${time}</div>
         </div>
         <div class="conv-preview">
@@ -908,6 +923,11 @@ function renderConversations() {
   }).join('') + moreBtn;
 }
 
+// Second line under the contact name: phone number for WhatsApp, channel name for Facebook
+function contactSubLabel(conv) {
+  return conv.channel === 'facebook' ? 'Facebook Messenger' : (conv.phone_number || '');
+}
+
 // ───────────────────────── Open conversation ─────────────────────────
 async function openConversation(id) {
   activeConvId = id;
@@ -918,11 +938,15 @@ async function openConversation(id) {
   renderConversations(document.querySelector('.search-input')?.value || '');
   const header = document.getElementById('chat-header');
   header.style.display = 'flex';
+  // Facebook chats: text only for now — hide the file and voice-note buttons
+  const isFb = activeConv.channel === 'facebook';
+  document.querySelector('label.attach-btn').style.display = isFb ? 'none' : 'flex';
+  document.getElementById('mic-btn').style.display = isFb ? 'none' : 'flex';
   document.getElementById('reply-bar').style.display = 'flex';
   const name = activeConv.contact_name || activeConv.phone_number || 'Unknown';
   document.getElementById('ch-avatar').textContent = name.slice(0,2).toUpperCase();
   document.getElementById('ch-name').textContent   = name;
-  document.getElementById('ch-sub').innerHTML = `<span class="chip ${activeConv.status||'open'}">${statusLabel(activeConv.status)}</span> · ${activeConv.phone_number || ''}`;
+  document.getElementById('ch-sub').innerHTML = `<span class="chip ${activeConv.status||'open'}">${statusLabel(activeConv.status)}</span> · ${escapeHtml(contactSubLabel(activeConv))}`;
   await loadMessages(id);
   markIncomingAsRead(id);
   updateDetailPanel(activeConv);
@@ -1319,7 +1343,10 @@ async function confirmForward() {
     if (res.ok) {
       showToast('Forwarded ✓');
       if (target.id === activeConvId) await loadMessages(activeConvId);
-    } else { showToast('Forward failed'); }
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast('Forward failed' + (err?.error ? ': ' + err.error : ''));
+    }
   } catch(e) { showToast('Forward failed'); }
   fwdSelectedId = null;
 }
@@ -1497,11 +1524,12 @@ function detectCountry(phone) {
 }
 
 function updateDetailPanel(conv) {
+  const isFb = conv.channel === 'facebook';
   document.getElementById('detail-contact').innerHTML = `
     <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val">${escapeHtml(conv.contact_name||'—')}</span></div>
-    <div class="detail-row"><span class="detail-key">Number</span><span class="detail-val">${escapeHtml(conv.phone_number||'—')}</span></div>
-    <div class="detail-row"><span class="detail-key">Country</span><span class="detail-val">${escapeHtml(detectCountry(conv.phone_number))}</span></div>
-    <div class="detail-row"><span class="detail-key">Channel</span><span class="detail-val">WhatsApp</span></div>`;
+    <div class="detail-row"><span class="detail-key">${isFb ? 'Facebook ID' : 'Number'}</span><span class="detail-val">${escapeHtml(conv.phone_number||'—')}</span></div>
+    <div class="detail-row"><span class="detail-key">Country</span><span class="detail-val">${escapeHtml(isFb ? '—' : detectCountry(conv.phone_number))}</span></div>
+    <div class="detail-row"><span class="detail-key">Channel</span><span class="detail-val">${isFb ? 'Facebook Messenger' : 'WhatsApp'}</span></div>`;
   const realMsgs = currentMessages.filter(m => m.message_type !== 'system');
   document.getElementById('detail-conv').innerHTML = `
     <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="chip ${conv.status||'open'}">${statusLabel(conv.status)}</span></span></div>
@@ -1565,7 +1593,7 @@ async function updateConvStatus(id, status) {
   renderConversations();
   if (activeConv) {
     activeConv.status = status;
-    document.getElementById('ch-sub').innerHTML = `<span class="chip ${status}">${statusLabel(status)}</span> · ${activeConv.phone_number||''}`;
+    document.getElementById('ch-sub').innerHTML = `<span class="chip ${status}">${statusLabel(status)}</span> · ${escapeHtml(contactSubLabel(activeConv))}`;
     updateDetailPanel(activeConv);
   }
   try { await authFetch('/conversation-status', { method: 'PATCH', body: JSON.stringify({ conversation_id: id, status }) }); } catch(e) {}
